@@ -1,21 +1,3 @@
-## 📝 最近更新
-
-> **2026-07-13** — 阶段二初步完成
-
-### 🚀 新增功能（阶段二：上传 & 分析）
-- **批量照片上传** — 支持多文件上传，自动存储与去重
-- **EXIF 元数据提取** — 自动解析拍摄时间、GPS 坐标、相机型号等信息
-- **缩略图自动生成** — 上传后自动生成缩略图，提升浏览体验
-- **照片 CRUD 完整实现** — 列表查询、分页、排序、删除等基础操作
-- **前端上传交互** — 拖拽上传、进度展示、上传完成回调刷新
-- **图片预览组件** — 照片网格/列表双视图切换、灯箱预览
-
-### 🔧 工程改进
-- **Docker 依赖锁定** — 修改 `Dockerfile` 中 pip/npm 依赖安装方式，固定版本号，避免依赖浮动导致构建不一致
-- **前后端 Docker 构建优化** — 统一依赖安装策略，确保开发/生产环境一致性
-
----
-
 # AI-PhotoAlbum — AI 智能相册
 
 <div align="center">
@@ -266,59 +248,82 @@ AI-PhotoAlbum/
 
 ## 🚀 快速开始
 
+### 环境要求
 
-### 1. 环境要求
- 
 - Python 3.11+
 - Node.js 18+
 - Docker & Docker Compose
- 
-### 2. 启动基础服务
- 
+
+### 1. 启动 PostgreSQL
+
 ```bash
-docker compose up -d
+cd AI-PhotoAlbum
+docker compose up -d postgres
 ```
- 
-启动 PostgreSQL（含 pgvector 向量扩展）。
- 
-### 3. 配置并启动后端
- 
+
+> PostgreSQL 运行在 `localhost:5433`（避免与本地 PG 冲突）
+
+### 2. 启动后端
+
 ```bash
 cd backend
- 
-# 复制并编辑环境变量
+
+# 复制配置文件
 cp .env.example .env
-# 按需填写：OPENAI_API_KEY（大模型 API 密钥）
-# 按需填写：JWT_SECRET_KEY（JWT 加密密钥）
- 
+
 # 安装依赖
 uv sync
- 
+
 # 启动开发服务器
 uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
- 
-**后端服务地址**：
-- API 服务：`http://localhost:8000`
-- API 文档：`http://localhost:8000/docs`
-- 健康检查：`http://localhost:8000/api/health`
- 
-### 4. 配置并启动前端
- 
+
+后端运行在 `http://localhost:8000`，API 文档在 `http://localhost:8000/docs`。
+
+### 3. 启动前端
+
 ```bash
 cd frontend
- 
+
 # 安装依赖
 npm install
- 
+
 # 启动开发服务器
 npm run dev
 ```
- 
-**前端服务地址**：
-- 开发服务器：`http://localhost:5173`
-- Vite 自动将 `/api` 代理到后端 `8000` 端口
- 
+
+前端运行在 `http://localhost:5173`，自动代理 `/api` 到后端 `:8000`。
+
+### 4. 验证
+
+```bash
+# 健康检查
+curl http://localhost:8000/api/health
+# → {"status":"ok","message":"AI-PhotoAlbum service is running"}
+
+# 注册用户
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","email":"demo@test.com","password":"123456"}'
+
+# 登录
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"123456"}'
+```
+
+### 完整部署（Docker Compose）
+
+```bash
+cd AI-PhotoAlbum
+docker compose up -d
+```
+
+访问：
+- 前端：`http://localhost:3000`
+- 后端 API 文档：`http://localhost:8000/docs`
+- MinIO 控制台：`http://localhost:9001`
+
 ---
 
 ## 📊 数据库模型
