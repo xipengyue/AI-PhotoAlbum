@@ -143,6 +143,10 @@ def list_photos(
     )
 
 
+# ══════════════════════════════════════════════════════════
+# 单张照片操作
+# ══════════════════════════════════════════════════════════
+
 @router.get("/{photo_id}", response_model=PhotoDetailResponse)
 def get_photo_detail(
     photo_id: str,

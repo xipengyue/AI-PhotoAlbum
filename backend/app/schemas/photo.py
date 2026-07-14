@@ -22,6 +22,7 @@ class PhotoResponse(BaseModel):
     file_type: str = "image"
     md5: Optional[str] = None
     is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
     processed_tasks: Optional[dict] = {}
 
     @field_validator("id", "owner_id", mode="before")

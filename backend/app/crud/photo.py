@@ -122,6 +122,53 @@ def restore_photo(db: Session, photo: Photo) -> Photo:
     return photo
 
 
+def permanent_delete_photo(db: Session, photo: Photo) -> None:
+    """永久删除照片（数据库记录 + 文件）"""
+    import os
+    from pathlib import Path
+
+    # 删除文件和缩略图
+    file_path = Path(photo.file_path)
+    if file_path.exists():
+        file_path.unlink()
+
+    thumb_dir = Path("./data/thumbnails")
+    thumb_path = thumb_dir / f"{photo.filename}_thumb.jpg"
+    if thumb_path.exists():
+        thumb_path.unlink()
+
+    # 删除数据库记录（级联删除 metadata 等关联记录）
+    db.delete(photo)
+    db.commit()
+
+
+def cleanup_expired_photos(db: Session, retention_days: int = 7) -> int:
+    """
+    清理超过保留天数的已删除照片
+
+    Args:
+        db: 数据库会话
+        retention_days: 回收站保留天数，默认 7 天
+
+    Returns:
+        清理的照片数量
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    expired = db.query(Photo).filter(
+        Photo.is_deleted == True,
+        Photo.deleted_at < cutoff,
+    ).all()
+
+    count = 0
+    for photo in expired:
+        permanent_delete_photo(db, photo)
+        count += 1
+
+    return count
+
+
 def get_deleted_photos(db: Session, owner_id) -> List[Photo]:
     """获取回收站中的照片"""
     return db.query(Photo).filter(

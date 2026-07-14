@@ -12,6 +12,7 @@ export interface PhotoItem {
   file_type: string
   md5?: string
   is_deleted: boolean
+  deleted_at?: string
   processed_tasks?: Record<string, boolean>
 }
 

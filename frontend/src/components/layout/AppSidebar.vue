@@ -16,6 +16,10 @@
         <el-icon><PictureFilled /></el-icon>
         <span>照片</span>
       </el-menu-item>
+      <el-menu-item index="/recycle-bin">
+        <el-icon><Delete /></el-icon>
+        <span>回收站</span>
+      </el-menu-item>
       <el-menu-item index="/albums">
         <el-icon><Folder /></el-icon>
         <span>相册</span>

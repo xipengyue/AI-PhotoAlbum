@@ -26,6 +26,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '照片', icon: 'PictureFilled' },
       },
       {
+        path: 'recycle-bin',
+        name: 'RecycleBin',
+        component: () => import('@/views/RecycleBinPage.vue'),
+        meta: { title: '回收站', icon: 'Delete' },
+      },
+      {
         path: 'albums',
         name: 'Albums',
         component: () => import('@/views/AlbumPage.vue'),

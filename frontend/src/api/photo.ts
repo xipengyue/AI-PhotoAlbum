@@ -55,4 +55,29 @@ export const photoApi = {
   fileUrl(id: string) {
     return `/api/medias/${id}/file`
   },
+
+  // ── 回收站 ────────────────────────────
+
+  /** 回收站列表 */
+  getRecycleBin() {
+    return request.get<PhotoListResponse>('/photos/recycle-bin/list')
+  },
+
+  /** 永久删除 */
+  permanentDelete(id: string) {
+    return request.delete(`/photos/recycle-bin/${id}/permanent`)
+  },
+
+  /** 清空回收站 */
+  emptyRecycleBin() {
+    return request.post('/photos/recycle-bin/empty')
+  },
+
+  /** 剩余天数 */
+  daysLeft(deletedAt: string): number {
+    const deleted = new Date(deletedAt)
+    const expire = new Date(deleted.getTime() + 7 * 24 * 3600 * 1000)
+    const now = new Date()
+    return Math.max(0, Math.ceil((expire.getTime() - now.getTime()) / (24 * 3600 * 1000)))
+  },
 }

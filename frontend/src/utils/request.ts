@@ -29,9 +29,19 @@ request.interceptors.response.use(
       router.push('/login')
       ElMessage.error('登录已过期，请重新登录')
     } else if (error.response?.data?.error) {
+      // 自定义异常处理器返回的 error 字段
       ElMessage.error(error.response.data.error)
+    } else if (error.response?.data?.detail) {
+      // FastAPI 默认错误格式（如 404、参数校验失败等）
+      const detail = error.response.data.detail
+      const msg = typeof detail === 'string' ? detail : JSON.stringify(detail)
+      ElMessage.error(msg)
+    } else if (error.response) {
+      // 有响应但格式未知，显示状态码
+      ElMessage.error(`请求失败 (${error.response.status})，请稍后重试`)
     } else {
-      ElMessage.error('网络错误，请稍后重试')
+      // 无响应（网络错误、CORS、服务器未启动等）
+      ElMessage.error('网络错误，请检查服务器是否启动')
     }
     return Promise.reject(error)
   }
