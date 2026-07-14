@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
+import { useUserStore } from '@/stores/user'
 
 const request = axios.create({
   baseURL: '/api',
@@ -24,8 +25,7 @@ request.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
+      useUserStore().logout()
       router.push('/login')
       ElMessage.error('登录已过期，请重新登录')
     } else if (error.response?.data?.error) {
