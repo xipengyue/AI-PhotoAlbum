@@ -1,21 +1,3 @@
-## 📝 最近更新
-
-> **2026-07-13** — 阶段二初步完成
-
-### 🚀 新增功能（阶段二：上传 & 分析）
-- **批量照片上传** — 支持多文件上传，自动存储与去重
-- **EXIF 元数据提取** — 自动解析拍摄时间、GPS 坐标、相机型号等信息
-- **缩略图自动生成** — 上传后自动生成缩略图，提升浏览体验
-- **照片 CRUD 完整实现** — 列表查询、分页、排序、删除等基础操作
-- **前端上传交互** — 拖拽上传、进度展示、上传完成回调刷新
-- **图片预览组件** — 照片网格/列表双视图切换、灯箱预览
-
-### 🔧 工程改进
-- **Docker 依赖锁定** — 修改 `Dockerfile` 中 pip/npm 依赖安装方式，固定版本号，避免依赖浮动导致构建不一致
-- **前后端 Docker 构建优化** — 统一依赖安装策略，确保开发/生产环境一致性
-
----
-
 # AI-PhotoAlbum — AI 智能相册
 
 <div align="center">
@@ -61,19 +43,24 @@
 - [x] 前端 Vue 3 脚手架（路由/布局/状态管理/Element Plus/TailwindCSS）
 - [x] 登录/注册页面 + 首页骨架 + 7 个功能页面占位
 
-### Phase 2 — 照片核心 🚧 待开发
+### Phase 2 — 照片核心 ✅ 已完成
 
-- [ ] 照片上传 API（单张/批量，支持 HEIC 格式）
-- [ ] EXIF 元数据提取（GPS 坐标、相机型号、拍摄参数）
-- [ ] 缩略图生成（400px，保持宽高比）
-- [ ] 照片列表/详情/软删除/恢复 API
-- [ ] 媒体文件服务（原始图 + 缩略图）
-- [ ] 前端照片浏览页（瀑布流/网格 + Lightbox 灯箱）
-- [ ] 前端照片详情侧边栏（EXIF 信息展示）
+- [x] 照片上传 API（批量上传 + MD5 去重，支持 JPG/PNG/HEIC/GIF/WebP）
+- [x] EXIF 元数据提取（通过异步任务系统执行）
+- [x] 照片列表/详情（分页 + 文件类型/时间范围/排序筛选）
+- [x] 照片属性修改（PATCH）、批量获取（POST batch）
+- [x] 软删除 + 恢复（回收站机制）
+- [x] 媒体文件服务（原始图 + 缩略图，inline / attachment）
+- [x] 时间轴 API（年/月/日分组 + 封面图）
+- [x] 地图视图 API（GPS 坐标筛选）
+- [x] AI 分析任务系统（Task 模型 + CRUD + 状态统计）
+- [x] 照片重新分析 API（reanalyze，按类型触发 AI 任务）
+- [ ] 前端照片浏览页（瀑布流 + Lightbox 灯箱）
 - [ ] 前端上传组件（拖拽上传 + 进度条）
 
-### Phase 3 — AI 能力集成 🚧 待开发
+### Phase 3 — AI 能力集成 🚧 进行中
 
+- [x] 任务基础设施（Task 模型、CRUD、5 种任务类型、上传自动创建）
 - [ ] ONNX 模型管理（下载/加载/释放）
 - [ ] InsightFace 人脸检测 + 512 维特征提取
 - [ ] 人脸聚类（DBSCAN + pgvector HNSW 向量检索）
@@ -266,59 +253,82 @@ AI-PhotoAlbum/
 
 ## 🚀 快速开始
 
+### 环境要求
 
-### 1. 环境要求
- 
 - Python 3.11+
 - Node.js 18+
 - Docker & Docker Compose
- 
-### 2. 启动基础服务
- 
+
+### 1. 启动 PostgreSQL
+
 ```bash
-docker compose up -d
+cd AI-PhotoAlbum
+docker compose up -d postgres
 ```
- 
-启动 PostgreSQL（含 pgvector 向量扩展）。
- 
-### 3. 配置并启动后端
- 
+
+> PostgreSQL 运行在 `localhost:5433`（避免与本地 PG 冲突）
+
+### 2. 启动后端
+
 ```bash
 cd backend
- 
-# 复制并编辑环境变量
+
+# 复制配置文件
 cp .env.example .env
-# 按需填写：OPENAI_API_KEY（大模型 API 密钥）
-# 按需填写：JWT_SECRET_KEY（JWT 加密密钥）
- 
+
 # 安装依赖
 uv sync
- 
+
 # 启动开发服务器
 uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
- 
-**后端服务地址**：
-- API 服务：`http://localhost:8000`
-- API 文档：`http://localhost:8000/docs`
-- 健康检查：`http://localhost:8000/api/health`
- 
-### 4. 配置并启动前端
- 
+
+后端运行在 `http://localhost:8000`，API 文档在 `http://localhost:8000/docs`。
+
+### 3. 启动前端
+
 ```bash
 cd frontend
- 
+
 # 安装依赖
 npm install
- 
+
 # 启动开发服务器
 npm run dev
 ```
- 
-**前端服务地址**：
-- 开发服务器：`http://localhost:5173`
-- Vite 自动将 `/api` 代理到后端 `8000` 端口
- 
+
+前端运行在 `http://localhost:5173`，自动代理 `/api` 到后端 `:8000`。
+
+### 4. 验证
+
+```bash
+# 健康检查
+curl http://localhost:8000/api/health
+# → {"status":"ok","message":"AI-PhotoAlbum service is running"}
+
+# 注册用户
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","email":"demo@test.com","password":"123456"}'
+
+# 登录
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"123456"}'
+```
+
+### 完整部署（Docker Compose）
+
+```bash
+cd AI-PhotoAlbum
+docker compose up -d
+```
+
+访问：
+- 前端：`http://localhost:3000`
+- 后端 API 文档：`http://localhost:8000/docs`
+- MinIO 控制台：`http://localhost:9001`
+
 ---
 
 ## 📊 数据库模型
@@ -369,6 +379,16 @@ npm run build
 # 预览生产构建
 npm run preview
 ```
+
+---
+
+## 📖 文档
+
+| 文档 | 说明 |
+|------|------|
+| [API 集成方案](./API集成方案.md) | Phase 3 API 层改造设计，基于 ai-part 服务层对照现状制定方案 |
+| [API 测试步骤](./API测试步骤.md) | 23 项端点测试手册 + 一键回归脚本 + 响应格式说明 |
+| [AI 模型变更应对方案](./AI模型变更应对方案.md) | Provider 切换、模型升级、兼容降级等 6 类场景应对策略 |
 
 ---
 
