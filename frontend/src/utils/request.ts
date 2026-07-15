@@ -3,6 +3,13 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useUserStore } from '@/stores/user'
 
+// 扩展 Axios 请求配置：silent 为 true 时，请求失败不弹出全局错误提示
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    silent?: boolean
+  }
+}
+
 const request = axios.create({
   baseURL: '/api',
   timeout: 30000,
@@ -28,6 +35,8 @@ request.interceptors.response.use(
       useUserStore().logout()
       router.push('/login')
       ElMessage.error('登录已过期，请重新登录')
+    } else if (error.config?.silent) {
+      // 静默模式：跳过全局错误提示，由调用方自行处理
     } else if (error.response?.data?.error) {
       ElMessage.error(error.response.data.error)
     } else {
