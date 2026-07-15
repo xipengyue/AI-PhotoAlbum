@@ -54,6 +54,18 @@
         <el-icon><ChatDotRound /></el-icon>
         <span>AI 助手</span>
       </el-menu-item>
+      <el-menu-item index="/training">
+        <el-icon><TrendCharts /></el-icon>
+        <span>模型训练</span>
+      </el-menu-item>
+      <el-menu-item index="/models">
+        <el-icon><Monitor /></el-icon>
+        <span>模型管理</span>
+      </el-menu-item>
+      <el-menu-item index="/database">
+        <el-icon><DataBoard /></el-icon>
+        <span>数据库管理</span>
+      </el-menu-item>
     </el-menu>
 
     <!-- 底部设置菜单 -->

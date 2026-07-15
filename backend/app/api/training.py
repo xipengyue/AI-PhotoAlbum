@@ -1,0 +1,207 @@
+"""
+训练任务 API 路由
+
+提供训练任务的 CRUD 操作及训练控制接口
+"""
+import uuid
+import logging
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy.orm import Session
+
+from app.database.session import get_db, SessionLocal
+from app.api.deps import get_required_user
+from app.models.user import User
+from app.models.training import TrainingTask
+from app.schemas.training import (
+    TrainingTaskCreate,
+    TrainingTaskResponse,
+    TrainingTaskListResponse,
+    TrainingTaskDetailResponse,
+    TrainingMetricResponse,
+)
+from app.services import training_service
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/training", tags=["训练管理"])
+
+
+def _make_db_factory():
+    """创建数据库会话工厂"""
+    return SessionLocal
+
+
+@router.post("/tasks", response_model=TrainingTaskResponse, status_code=201)
+def create_training_task(
+    data: TrainingTaskCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """创建训练任务"""
+    try:
+        task = training_service.create_task(
+            task_name=data.task_name,
+            model_name=data.model_name,
+            config=data.config.model_dump(),
+            db=db,
+            description=data.description,
+            dataset_id=data.dataset_id,
+        )
+        return TrainingTaskResponse.model_validate(task)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建训练任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建训练任务失败: {str(e)}")
+
+
+@router.get("/tasks", response_model=TrainingTaskListResponse)
+def list_training_tasks(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """获取训练任务列表"""
+    try:
+        query = db.query(TrainingTask).order_by(TrainingTask.created_at.desc())
+        if status:
+            query = query.filter(TrainingTask.status == status)
+        tasks = query.all()
+
+        items = [TrainingTaskResponse.model_validate(t) for t in tasks]
+        return TrainingTaskListResponse(total=len(items), items=items)
+    except Exception as e:
+        logger.error(f"获取训练任务列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取训练任务列表失败: {str(e)}")
+
+
+@router.get("/tasks/{task_id}", response_model=TrainingTaskDetailResponse)
+def get_training_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """获取训练任务详情（含指标数据）"""
+    try:
+        task = db.query(TrainingTask).filter(TrainingTask.id == uuid.UUID(task_id)).first()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的任务 ID")
+
+    if not task:
+        raise HTTPException(status_code=404, detail="训练任务不存在")
+
+    metrics = training_service.get_task_metrics(task_id, db)
+
+    return TrainingTaskDetailResponse(
+        task=TrainingTaskResponse.model_validate(task),
+        metrics=[TrainingMetricResponse.model_validate(m) for m in metrics],
+    )
+
+
+@router.post("/tasks/{task_id}/start")
+def start_training(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """启动训练"""
+    try:
+        task = db.query(TrainingTask).filter(TrainingTask.id == uuid.UUID(task_id)).first()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的任务 ID")
+
+    if not task:
+        raise HTTPException(status_code=404, detail="训练任务不存在")
+
+    if task.status not in ("pending", "paused", "failed"):
+        raise HTTPException(status_code=400, detail=f"当前状态不允许启动: {task.status}")
+
+    db.commit()  # 确保状态持久化
+
+    try:
+        training_service.start_training(task_id, _make_db_factory())
+        return {"message": "训练已启动", "task_id": task_id, "status": "running"}
+    except Exception as e:
+        logger.error(f"启动训练失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"启动训练失败: {str(e)}")
+
+
+@router.post("/tasks/{task_id}/pause")
+def pause_training_route(
+    task_id: str,
+    current_user: User = Depends(get_required_user),
+):
+    """暂停训练（完成当前 epoch 后暂停）"""
+    try:
+        training_service.pause_training(task_id)
+        return {"message": "正在暂停训练（完成当前 epoch 后暂停）", "task_id": task_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"暂停训练失败: {str(e)}")
+
+
+@router.post("/tasks/{task_id}/resume")
+def resume_training_route(
+    task_id: str,
+    current_user: User = Depends(get_required_user),
+):
+    """恢复训练"""
+    try:
+        training_service.resume_training(task_id, _make_db_factory())
+        return {"message": "训练已恢复", "task_id": task_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"恢复训练失败: {str(e)}")
+
+
+@router.post("/tasks/{task_id}/stop")
+def stop_training_route(
+    task_id: str,
+    current_user: User = Depends(get_required_user),
+):
+    """停止训练（不保存当前 checkpoint）"""
+    try:
+        training_service.stop_training(task_id)
+        return {"message": "训练已停止", "task_id": task_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"停止训练失败: {str(e)}")
+
+
+@router.delete("/tasks/{task_id}")
+def delete_training_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """删除训练任务及关联文件"""
+    try:
+        success = training_service.delete_training_task(task_id, db)
+        if not success:
+            raise HTTPException(status_code=404, detail="训练任务不存在")
+        return {"message": "训练任务已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
+@router.get("/tasks/{task_id}/status")
+def get_task_status(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """获取任务状态"""
+    status = training_service.get_task_status(task_id, db)
+    if "error" in status:
+        raise HTTPException(status_code=404, detail=status["error"])
+    return status
+
+
+@router.get("/tasks/{task_id}/metrics")
+def get_task_metrics(
+    task_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """获取任务所有指标数据"""
+    metrics = training_service.get_task_metrics(task_id, db)
+    return {"metrics": metrics}

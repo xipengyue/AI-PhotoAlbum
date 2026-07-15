@@ -44,6 +44,8 @@ request.interceptors.response.use(
       ElMessage.error('登录已过期，请重新登录')
     } else if (error.config?.silent) {
       // 静默模式：跳过全局错误提示，由调用方自行处理
+    } else if (error.response?.data?.detail) {
+      ElMessage.error(error.response.data.detail)
     } else if (error.response?.data?.error) {
       // 自定义异常处理器返回的 error 字段
       ElMessage.error(error.response.data.error)

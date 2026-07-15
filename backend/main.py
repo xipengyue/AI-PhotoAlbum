@@ -29,6 +29,11 @@ from app.api.search import router as search_router
 from app.api.agent import router as agent_router
 from app.api.tasks import router as tasks_router
 
+# 训练与管理路由
+from app.api.training import router as training_router
+from app.api.models import router as models_router
+from app.api.datasets import router as datasets_router
+
 # 确保所有模型被导入（使 Base.metadata 注册所有表）
 import app.models  # noqa: F401
 
@@ -108,6 +113,11 @@ app.include_router(face_router)
 app.include_router(search_router)
 app.include_router(agent_router)
 app.include_router(tasks_router)
+
+# 注册训练与管理路由
+app.include_router(training_router)
+app.include_router(models_router)
+app.include_router(datasets_router)
 
 
 @app.get("/")

@@ -9,3 +9,4 @@ from app.models.description import ImageDescription, PhotoTag, PhotoTagRelation
 from app.models.album import Album, AlbumPhoto
 from app.models.agent import AgentSession, AgentMessage
 from app.models.task import Task
+from app.models.training import Dataset, TrainingTask, TrainingMetric
