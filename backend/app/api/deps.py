@@ -4,7 +4,7 @@ API 依赖注入
 """
 from typing import Optional
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.database.session import get_db
@@ -17,16 +17,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
+    token_query: Optional[str] = Query(default=None, alias="token", include_in_schema=False),
     db: Session = Depends(get_db),
 ):
     """
     获取当前认证用户
-    如果 Token 无效或不存在，返回 None（允许匿名访问的端点）
+    支持两种 Token 传递方式：
+      1. Authorization: Bearer <token> 请求头（标准方式）
+      2. ?token=<token> URL 查询参数（用于 <img> 标签等无法设置请求头的场景）
     """
-    if not token:
+    # 优先使用 Header Token，其次使用 Query Token
+    effective_token = token or token_query
+    if not effective_token:
         return None
 
-    payload = decode_access_token(token)
+    payload = decode_access_token(effective_token)
     if not payload:
         return None
 

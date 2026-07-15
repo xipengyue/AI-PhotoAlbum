@@ -51,14 +51,18 @@ export const photoApi = {
     return request.get(`/photos/${id}/metadata`)
   },
 
-  /** 缩略图 URL */
+  /** 缩略图 URL（带 Token 认证） */
   thumbnailUrl(id: string) {
-    return `/api/photos/${id}/thumbnail`
+    const token = localStorage.getItem('token')
+    const qs = token ? `?token=${token}` : ''
+    return `/api/photos/${id}/thumbnail${qs}`
   },
 
-  /** 原始文件 URL */
+  /** 原始文件 URL（带 Token 认证） */
   fileUrl(id: string) {
-    return `/api/photos/${id}/file`
+    const token = localStorage.getItem('token')
+    const qs = token ? `?token=${token}` : ''
+    return `/api/photos/${id}/file${qs}`
   },
 
   /** 剩余天数 */
