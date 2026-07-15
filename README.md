@@ -1,27 +1,27 @@
 ## 📝 最近更新
 
-> **2026-07-13** — 阶段二初步完成
+> **2026-07-15** — 集成分支（API + AI/VLM 合并）
 
-### 🚀 新增功能（阶段二：上传 & 分析）
-- **批量照片上传** — 支持多文件上传，自动存储与去重
-- **EXIF 元数据提取** — 自动解析拍摄时间、GPS 坐标、相机型号等信息
-- **缩略图自动生成** — 上传后自动生成缩略图，提升浏览体验
-- **照片 CRUD 完整实现** — 列表查询、分页、排序、删除等基础操作
-- **前端上传交互** — 拖拽上传、进度展示、上传完成回调刷新
-- **图片预览组件** — 照片网格/列表双视图切换、灯箱预览
+### 🤖 AI 服务层
+- **YOLO 目标检测** — Ultralytics YOLO11，支持 80 类 COCO 物体识别
+- **人脸增量聚类** — 512 维余弦相似度聚类，自动归并人脸身份
+- **CLIP 文本检索** — jieba 分词 + pgvector 向量相似度搜索
+- **LangGraph 检索代理** — 实体提取 → 人称识别 → CLIP 检索 → 结果合并流水线
+- **对话式 Agent** — 会话管理 + 消息持久化 + 自然语言照片检索
 
-### 🔧 工程改进
-- **Docker 依赖锁定** — 修改 `Dockerfile` 中 pip/npm 依赖安装方式，固定版本号，避免依赖浮动导致构建不一致
-- **前后端 Docker 构建优化** — 统一依赖安装策略，确保开发/生产环境一致性
+### 🔧 架构改进
+- **API 重构** — medias / recycle_bin 路由合并至 photo.py，统一 BaseResponse 响应格式
+- **Task 任务系统** — 5 种分析任务类型，上传自动创建，状态追踪
+- **时间轴 & 地图 API** — 年/月/日分组 + GPS 坐标筛选
+- **Token 查询参数认证** — `<img>` 标签友好，缩略图无需 JS 注入
 
 > **2026-07-14** — 回收站功能
 
-### 🗑️ 新增功能（回收站）
-- **软删除恢复** — 照片删除后进入回收站，支持一键恢复
-- **永久删除** — 支持单张/批量彻底删除照片及关联文件
-- **自动清理** — 7 天过期自动清理，后台定时任务每小时检查
-- **回收站页面** — 缩略图网格展示、剩余天数角标、清空回收站
-- **错误提示优化** — 前端请求拦截器区分多种错误类型，提示更友好
+- 软删除恢复、永久删除、剩余天数展示
+
+> **2026-07-13** — 阶段二初步完成
+
+- 批量上传、EXIF 提取、缩略图生成、照片 CRUD、前端上传/预览组件
 
 ---
 
@@ -88,11 +88,13 @@
 ### Phase 3 — AI 能力集成 🚧 进行中
 
 - [x] 任务基础设施（Task 模型、CRUD、5 种任务类型、上传自动创建）
+- [x] YOLO 目标检测服务（80 类 COCO，画框标注）
+- [x] 人脸增量聚类服务（余弦相似度，FaceIdentity 自动归并）
+- [x] 交互式命名确认服务（pending 会话机制）
 - [ ] ONNX 模型管理（下载/加载/释放）
 - [ ] InsightFace 人脸检测 + 512 维特征提取
-- [ ] 人脸聚类（DBSCAN + pgvector HNSW 向量检索）
 - [ ] EfficientNet 场景分类（人物/动物/风景/文档/通用 5 类）
-- [ ] CLIP ViT-B-32 图文向量嵌入
+- [ ] CLIP ViT-B-32 图文向量嵌入（当前为预留接口）
 - [ ] LLM 图片描述生成（description + narrative + quality/memory 评分）
 - [ ] TaskManager 异步任务队列（APScheduler）
 - [ ] AI 分析进度前端展示
@@ -106,13 +108,14 @@
 - [ ] 前端相册浏览页（网格 + 详情）
 - [ ] 前端人物浏览页（人物卡片 + 照片列表）
 
-### Phase 5 — 搜索与 Agent 🚧 待开发
+### Phase 5 — 搜索与 Agent 🚧 进行中
 
-- [ ] 多条件搜索 API（时间范围/地点/标签/人物/文件名）
-- [ ] CLIP 以文搜图（自然语言 → 向量相似度 → 照片）
-- [ ] LangGraph Agent 系统（Supervisor 路由 + 多 Agent 协作）
-- [ ] Agent 工具集（search_photos / get_detail / get_faces / get_locations）
+- [x] jieba 分词 + 词性标注（名词提取）
+- [x] CLIP 文本检索服务（pgvector cosine 相似度查询）
+- [x] LangGraph 混合检索代理（实体识别人称识别 CLIP 检索 结果合并）
+- [x] 对话式检索 Agent（会话 CRUD + 消息持久化）
 - [ ] SSE 流式对话 API
+- [ ] Agent 工具集（search_photos / get_detail / get_faces / get_locations）
 - [ ] 前端 AI 对话页面（聊天气泡 + Markdown 渲染 + 照片卡片）
 
 ### Phase 6 — 足迹地图与收尾 🚧 待开发
@@ -135,7 +138,7 @@ AI-PhotoAlbum/
 ├── docker-compose.yml              # 基础设施编排（PG + MinIO）
 ├── README.md                       # 本文件
 │
-├── backend/                        # Python 后端 (FastAPI :8000)
+├── backend/                        # Python 后端 (FastAPI :8001 开发 / :8000 Docker)
 │   ├── main.py                     # 应用入口 + 生命周期管理
 │   ├── pyproject.toml              # 依赖管理 (uv)
 │   ├── .env / .env.example         # 环境变量配置
@@ -177,24 +180,22 @@ AI-PhotoAlbum/
 │       │   ├── deps.py             # 依赖注入（认证/DB会话）
 │       │   ├── auth.py             # ✅ POST /auth/register, /auth/login, GET /auth/me
 │       │   ├── system.py           # ✅ GET /api/health
-│       │   ├── photo.py            # ✅ 照片 CRUD + 上传
-│       │   ├── medias.py           # ✅ 媒体文件服务（上传/缩略图/下载）
-│       │   ├── recycle_bin.py      # ✅ 回收站（列表/恢复/清空/永久删除）
-│       │   ├── album.py            # 🚧 相册管理
-│       │   ├── face.py             # 🚧 人脸管理
-│       │   ├── search.py           # 🚧 智能搜索
-│       │   ├── agent.py            # 🚧 Agent 对话
-│       │   └── tasks.py            # 🚧 任务状态
+      │       │   ├── photo.py            # ✅ 照片 CRUD + 上传 + 文件 + 回收站
+      │       │   ├── tasks.py            # ✅ 异步任务查询 + 统计
+      │       │   ├── album.py            # 🚧 相册管理
+      │       │   ├── face.py             # 🚧 人脸管理
+      │       │   ├── search.py           # 🚧 智能搜索
+      │       │   └── agent.py            # 🚧 Agent 对话
 │       │
-│       ├── services/               # 业务服务层
-│       │   ├── exif_service.py      # ✅ EXIF 元数据提取
-│       │   ├── thumbnail.py         # ✅ 缩略图生成
-│       │   ├── agent/              # 🚧 LangGraph Agent
-│       │   └── ai_providers/       # 🚧 AI 模型封装
-│       │       ├── face.py         # InsightFace
-│       │       ├── ocr.py          # PaddleOCR
-│       │       ├── classifier.py   # 场景分类
-│       │       └── clip.py         # CLIP 嵌入
+      │       ├── services/               # 业务服务层
+      │       │   ├── photo_service.py    # ✅ 照片上传编排
+      │       │   ├── exif_service.py     # ✅ EXIF 元数据提取
+      │       │   ├── thumbnail.py        # ✅ 缩略图生成
+      │       │   ├── detection_service.py # ✅ YOLO 目标检测
+      │       │   ├── face_cluster_service.py  # ✅ 人脸增量聚类
+      │       │   ├── name_confirmation_service.py  # ✅ 命名确认
+      │       │   ├── search_service.py   # ✅ CLIP 检索 + jieba 分词
+      │       │   └── agent/              # ✅ LangGraph 检索代理 + 对话
 │       │
 │       ├── tasks/                  # 🚧 异步任务
 │       └── middleware/
@@ -299,81 +300,73 @@ AI-PhotoAlbum/
 - Node.js 18+
 - Docker & Docker Compose
 
-### 1. 启动 PostgreSQL
+### 端口一览
 
-```bash
-cd AI-PhotoAlbum
-docker compose up -d postgres
-```
- 
-一键启动全部服务（PostgreSQL + pgvector + MinIO + 后端 + 前端）。
-- 后端 API：`http://localhost:8000`
-- 前端页面：`http://localhost:3000`
-- API 文档：`http://localhost:8000/docs`
-- MinIO 控制台：`http://localhost:9001`
+| 端口 | 服务 | 说明 |
+|:---:|------|------|
+| `8001` | 后端 FastAPI（开发） | `npm run dev` 时代理到此端口 |
+| `8000` | 后端 FastAPI（Docker） | `docker compose up` 时使用 |
+| `5173` | 前端 Vite 开发服务器 | `npm run dev` |
+| `3000` | 前端 Nginx（Docker） | `docker compose up` |
+| `5433` | PostgreSQL | 避免与本地 PG 冲突 |
+| `9000` | MinIO S3 API | 对象存储 |
+| `9001` | MinIO 控制台 | Web 管理界面 |
 
-> PostgreSQL 运行在 `localhost:5433`（避免与本地 PG 冲突）
- 
-### 2. 配置并启动后端
- 
-```bash
-cd backend
-
-# 复制配置文件
-cp .env.example .env
-
-# 安装依赖
-uv sync
-
-# 启动开发服务器
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-后端运行在 `http://localhost:8000`，API 文档在 `http://localhost:8000/docs`。
-
-### 3. 启动前端
-
-```bash
-cd frontend
-
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-```
-
-前端运行在 `http://localhost:5173`，自动代理 `/api` 到后端 `:8000`。
-
-### 4. 验证
-
-```bash
-# 健康检查
-curl http://localhost:8000/api/health
-# → {"status":"ok","message":"AI-PhotoAlbum service is running"}
-
-# 注册用户
-curl -X POST http://localhost:8000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"demo","email":"demo@test.com","password":"123456"}'
-
-# 登录
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"demo","password":"123456"}'
-```
-
-### 完整部署（Docker Compose）
+### 方式一：Docker Compose 一键部署
 
 ```bash
 cd AI-PhotoAlbum
 docker compose up -d
 ```
 
-访问：
-- 前端：`http://localhost:3000`
-- 后端 API 文档：`http://localhost:8000/docs`
-- MinIO 控制台：`http://localhost:9001`
+| 服务 | 地址 |
+|------|------|
+| 前端 | `http://localhost:3000` |
+| API 文档 | `http://localhost:8000/docs` |
+| MinIO | `http://localhost:9001` |
+
+### 方式二：开发模式（前后端分离）
+
+```bash
+# ① 启动数据库
+docker compose up -d postgres
+
+# ② 后端（新终端，注意端口 8001）
+cd backend
+cp .env.example .env        # 仅首次，可编辑 OPENAI_API_KEY
+uv sync                     # 仅首次
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8001
+
+# ③ 前端（新终端）
+cd frontend
+npm install                 # 仅首次
+npm run dev
+```
+
+| 服务 | 地址 |
+|------|------|
+| 前端 | `http://localhost:5173` |
+| API 文档 | `http://localhost:8001/docs` |
+
+> **注意**：开发模式下后端必须用 `--port 8001`，因为 `vite.config.ts` 代理目标写的是 `localhost:8001`。
+
+### 验证
+
+```bash
+# 健康检查（Docker 模式用 8000，开发模式用 8001）
+curl http://localhost:8001/api/health
+# → {"status":"ok","message":"AI-PhotoAlbum service is running"}
+
+# 注册用户
+curl -X POST http://localhost:8001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","email":"demo@test.com","password":"123456"}'
+
+# 登录获取 Token
+curl -X POST http://localhost:8001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"123456"}'
+```
 
 ---
 
@@ -386,12 +379,14 @@ docker compose up -d
 | | `photo_metadata` | EXIF 元数据（GPS/相机参数） |
 | | `image_descriptions` | AI 生成的描述/标签/评分 |
 | | `image_vectors` | CLIP 512 维向量嵌入 |
+| | `object_detections` | YOLO 目标检测结果 |
 | 人脸 | `faces` | 人脸检测结果 + 特征向量 |
 | | `face_identities` | 人脸身份聚类 |
 | 相册 | `albums` | 相册（手动/智能/条件） |
 | | `album_photos` | 相册-照片关联 |
 | 标签 | `photo_tags` | 标签字典 |
 | | `photo_tag_relations` | 照片-标签关联 |
+| 任务 | `tasks` | AI 分析任务（5 种类型） |
 | Agent | `agent_sessions` | 对话会话 |
 | | `agent_messages` | 对话消息记录 |
 
