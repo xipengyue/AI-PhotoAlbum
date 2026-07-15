@@ -26,72 +26,19 @@
         <el-button type="primary" @click="handleSearch" class="ml-4">搜索</el-button>
       </div>
 
-      <!-- 展开/收起筛选 -->
-      <div class="filter-toggle mt-3">
-        <el-button link type="primary" @click="showFilters = !showFilters">
-          {{ showFilters ? '收起筛选' : '展开筛选' }}
-        </el-button>
+      <!-- 日期筛选 -->
+      <div class="mt-4">
+        <label class="block text-sm font-medium mb-2">日期范围</label>
+        <el-date-picker
+          v-model="filters.dateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          @change="handleFilterChange"
+          style="max-width: 360px"
+        />
       </div>
-
-      <!-- 筛选区 -->
-      <el-collapse-transition>
-        <div v-show="showFilters" class="filters-panel mt-4 p-4 bg-gray-50 rounded">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- 日期范围 -->
-            <div>
-              <label class="block text-sm font-medium mb-2">日期范围</label>
-              <el-date-picker
-                v-model="filters.dateRange"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                @change="handleFilterChange"
-                class="w-full"
-              />
-            </div>
-
-            <!-- 城市 -->
-            <div>
-              <label class="block text-sm font-medium mb-2">城市</label>
-              <el-select
-                v-model="filters.city"
-                placeholder="选择城市"
-                clearable
-                @change="handleFilterChange"
-                class="w-full"
-              >
-                <el-option
-                  v-for="city in availableCities"
-                  :key="city"
-                  :label="city"
-                  :value="city"
-                />
-              </el-select>
-            </div>
-
-            <!-- 标签 -->
-            <div>
-              <label class="block text-sm font-medium mb-2">标签</label>
-              <el-select
-                v-model="filters.tags"
-                placeholder="选择标签"
-                multiple
-                clearable
-                @change="handleFilterChange"
-                class="w-full"
-              >
-                <el-option
-                  v-for="tag in availableTags"
-                  :key="tag"
-                  :label="tag"
-                  :value="tag"
-                />
-              </el-select>
-            </div>
-          </div>
-        </div>
-      </el-collapse-transition>
     </div>
 
     <!-- 结果统计和推荐标签 -->
@@ -121,7 +68,7 @@
       <div v-if="!hasSearched" class="empty-state">
         <el-empty description="开始搜索你的照片">
           <template #default>
-            <div class="mt-4">
+            <div v-if="exampleQueries.length > 0" class="mt-4">
               <span class="text-sm text-gray-600 mr-2">示例搜索:</span>
               <el-tag
                 v-for="example in exampleQueries"
@@ -147,7 +94,12 @@
 
       <!-- 无结果 -->
       <div v-else-if="searchResults.items.length === 0" class="empty-state">
-        <el-empty description="未找到相关照片" />
+        <el-empty description="未找到相关照片">
+          <template #default>
+            <p class="text-sm text-gray-500 mb-3">试试换个关键词，或调整筛选条件</p>
+            <el-button type="primary" size="small" @click="resetSearch">重置搜索</el-button>
+          </template>
+        </el-empty>
       </div>
 
       <!-- 有结果网格 -->
@@ -155,7 +107,7 @@
         <div
           v-for="photo in searchResults.items"
           :key="photo.id"
-          class="photo-card"
+          class="photo-card group"
           @click="previewPhoto(photo)"
         >
           <div class="photo-container">
@@ -172,6 +124,14 @@
             >
               {{ (photo.score * 100).toFixed(0) }}%
             </div>
+            <!-- 详情按钮 -->
+            <button
+              class="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-500"
+              @click.stop="handleDetail(photo)"
+              title="详情"
+            >
+              <el-icon :size="14"><InfoFilled /></el-icon>
+            </button>
           </div>
           <div class="photo-info">
             <p class="photo-name truncate text-sm font-medium">
@@ -216,29 +176,31 @@
       :initial-index="previewIndex"
       @close="previewVisible = false"
     />
+
+    <!-- 详情抽屉 -->
+    <PhotoDetailDrawer v-model:visible="detailVisible" :photo-id="detailPhotoId" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { InfoFilled } from '@element-plus/icons-vue'
 import { loadAllPhotos, searchPhotos } from '@/api/search'
 import { photoApi } from '@/api/photo'
+import PhotoDetailDrawer from '@/components/photo/PhotoDetailDrawer.vue'
 import type { PhotoItem } from '@/types/photo'
-import type { SearchRequest, SearchResponse } from '@/types/search'
+import type { SearchRequest, SearchResponse, SearchResultItem } from '@/types/search'
 
 // 搜索状态
 const searchQuery = ref('')
 const searchMode = ref<'semantic' | 'keyword' | 'tag'>('semantic')
 const loading = ref(false)
 const hasSearched = ref(false)
-const showFilters = ref(false)
 
-// 筛选条件
+// 筛选条件（仅日期范围）
 const filters = reactive({
   dateRange: null as [Date, Date] | null,
-  city: '',
-  tags: [] as string[],
 })
 
 // 搜索结果
@@ -262,12 +224,12 @@ const previewUrls = ref<string[]>([])
 // 所有照片缓存
 let allPhotos: PhotoItem[] = []
 
-// 可选城市和标签
-const availableCities = ref<string[]>([])
-const availableTags = ref<string[]>([])
+// 示例查询（从真实文件名提取）
+const exampleQueries = ref<string[]>([])
 
-// 示例查询
-const exampleQueries = ['风景', '人物', '美食', '建筑']
+// 详情抽屉
+const detailVisible = ref(false)
+const detailPhotoId = ref<string | null>(null)
 
 /**
  * 格式化日期
@@ -299,8 +261,6 @@ async function handleSearch() {
         end_date: filters.dateRange?.[1]
           ? filters.dateRange[1].toISOString().split('T')[0]
           : undefined,
-        city: filters.city || undefined,
-        tags: filters.tags.length > 0 ? filters.tags : undefined,
       },
       page: currentPage.value,
       page_size: pageSize,
@@ -341,8 +301,6 @@ function selectSuggestedTag(tag: string) {
   searchMode.value = 'tag'
   searchQuery.value = tag
   filters.dateRange = null
-  filters.city = ''
-  filters.tags = []
   handleSearch()
 }
 
@@ -353,15 +311,36 @@ function selectExampleQuery(query: string) {
   searchQuery.value = query
   searchMode.value = 'semantic'
   filters.dateRange = null
-  filters.city = ''
-  filters.tags = []
   handleSearch()
+}
+
+/**
+ * 重置搜索（回到未搜索态）
+ */
+function resetSearch() {
+  searchQuery.value = ''
+  searchMode.value = 'semantic'
+  filters.dateRange = null
+  searchResults.items = []
+  searchResults.total = 0
+  searchResults.query = ''
+  searchResults.suggested_tags = []
+  hasSearched.value = false
+  currentPage.value = 1
+}
+
+/**
+ * 打开详情抽屉
+ */
+function handleDetail(photo: SearchResultItem) {
+  detailPhotoId.value = photo.id
+  detailVisible.value = true
 }
 
 /**
  * 预览照片
  */
-function previewPhoto(photo: any) {
+function previewPhoto(photo: SearchResultItem) {
   previewIndex.value = searchResults.items.indexOf(photo)
   previewUrls.value = searchResults.items.map((p) => photoApi.fileUrl(p.id))
   previewVisible.value = true
@@ -375,20 +354,19 @@ onMounted(async () => {
     loading.value = true
     allPhotos = await loadAllPhotos()
 
-    // 提取可用城市和标签（演示目的）
-    const citiesSet = new Set<string>()
-    const tagsSet = new Set<string>()
-
-    allPhotos.forEach((photo) => {
-      // 从 original_name 中提取标签
-      if (photo.original_name) {
-        const words = photo.original_name.split(/[-_\s]/).filter((w) => w.length > 2)
-        words.forEach((word) => tagsSet.add(word))
-      }
-    })
-
-    availableCities.value = Array.from(citiesSet).slice(0, 10)
-    availableTags.value = Array.from(tagsSet).slice(0, 20)
+    // 从真实文件名中提取示例查询（去重、长度适中）
+    const seen = new Set<string>()
+    const examples: string[] = []
+    for (const photo of allPhotos) {
+      if (!photo.original_name) continue
+      const name = photo.original_name
+      if (name.length < 3 || name.length > 30) continue
+      if (seen.has(name)) continue
+      seen.add(name)
+      examples.push(name)
+      if (examples.length >= 4) break
+    }
+    exampleQueries.value = examples
   } catch (error) {
     console.error('加载照片失败:', error)
     // 区分不同错误类型
@@ -428,7 +406,7 @@ onMounted(async () => {
 }
 
 .search-controls {
-  @apply flex gap-4 items-center;
+  @apply flex flex-wrap gap-4 items-center;
 
   .search-input {
     @apply flex-1;
@@ -437,14 +415,6 @@ onMounted(async () => {
   .mode-buttons {
     @apply flex-shrink-0;
   }
-}
-
-.filter-toggle {
-  @apply text-sm;
-}
-
-.filters-panel {
-  @apply border border-gray-200;
 }
 
 .results-header {
