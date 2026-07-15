@@ -4,13 +4,6 @@
     <div class="flex items-center justify-between">
       <h2 class="text-xl font-bold text-gray-800">模型训练</h2>
       <div class="flex items-center space-x-3">
-        <el-select v-model="selectedTaskId" placeholder="选择训练任务" clearable style="width: 240px"
-          @change="onTaskSelect">
-          <el-option v-for="t in taskList" :key="t.id" :label="`${t.task_name} (${t.model_name})`" :value="t.id">
-            <span>{{ t.task_name }}</span>
-            <el-tag :type="statusType(t.status)" size="small" class="ml-2">{{ statusLabel(t.status) }}</el-tag>
-          </el-option>
-        </el-select>
         <el-button type="primary" @click="showCreatePanel = true">
           <el-icon><Plus /></el-icon> 新建训练
         </el-button>
@@ -200,7 +193,7 @@
           <div class="flex items-center space-x-4">
             <span class="font-semibold text-gray-800">{{ selectedTask.task_name }}</span>
             <el-tag :type="statusType(selectedTask.status)" size="small">{{ statusLabel(selectedTask.status) }}</el-tag>
-            <span class="text-sm text-gray-500">Epoch: {{ selectedTask.current_epoch }} / {{ selectedTask.total_epochs }}</span>
+            <span class="text-sm text-gray-500">Epoch: {{ epochDisplay(selectedTask.current_epoch, selectedTask.total_epochs, selectedTask.status) }}</span>
             <span class="text-sm text-gray-500" v-if="selectedTask.best_metric !== null">
               最佳 mAP50: <strong>{{ selectedTask.best_metric.toFixed(4) }}</strong>
             </span>
@@ -275,7 +268,8 @@
         <!-- 最近任务列表 -->
         <div class="bg-white rounded-lg border p-3 flex-1">
           <h4 class="text-sm font-semibold text-gray-700 mb-3">最近训练任务</h4>
-          <el-table :data="taskList.slice(0, 6)" empty-text="暂无训练任务" style="width: 100%">
+          <el-table :data="taskList.slice(0, 6)" empty-text="暂无训练任务" style="width: 100%"
+            @row-click="(row:any) => onTaskSelect(row.id)" highlight-current-row>
             <el-table-column prop="task_name" label="任务" min-width="120" />
             <el-table-column label="状态" width="80">
               <template #default="{ row }">
@@ -283,7 +277,7 @@
               </template>
             </el-table-column>
             <el-table-column label="进度" width="90" align="center">
-              <template #default="{ row }">{{ row.current_epoch }}/{{ row.total_epochs }}</template>
+              <template #default="{ row }">{{ epochDisplay(row.current_epoch, row.total_epochs, row.status) }}</template>
             </el-table-column>
             <el-table-column prop="best_metric" label="mAP50" width="90" align="center">
               <template #default="{ row }">{{ row.best_metric?.toFixed(4) || '-' }}</template>
@@ -292,7 +286,7 @@
         </div>
         <!-- 快速操作提示 -->
         <div class="bg-blue-50 rounded-lg border border-blue-200 p-3 text-sm text-blue-700">
-          点击上方「新建训练」开始一个新的训练任务，或从下拉列表中选择已有任务查看详情。
+          点击上方「新建训练」开始一个新的训练任务，或在下方列表中点击任务卡片以查看训练详情和指标。
         </div>
       </div>
     </div>
@@ -404,8 +398,15 @@ const progressPercent = computed(() => {
   if (!selectedTask.value) return 0
   const t = selectedTask.value
   if (t.total_epochs === 0) return 0
-  return Math.round((t.current_epoch / t.total_epochs) * 100)
+  const done = t.status === "pending" ? 0 : Math.min(t.current_epoch + 1, t.total_epochs)
+  return Math.round((done / t.total_epochs) * 100)
 })
+
+function epochDisplay(current: number, total: number, status: string): string {
+  if (status === "pending" && current === 0) return `0 / ${total}`
+  const done = Math.min(current + 1, total)
+  return `${done} / ${total}`
+}
 
 const progressStatus = computed(() => {
   if (!selectedTask.value) return '' as any
@@ -530,6 +531,7 @@ async function loadDatasets() {
 async function loadMetrics(taskId: string) {
   try {
     const res = await trainingApi.getTaskDetail(taskId)
+    if (selectedTaskId.value !== taskId) return
     metricsData.value = res.data.metrics || []
 
     // 更新 taskList 中的状态
@@ -555,6 +557,7 @@ async function onTaskSelect(taskId: string) {
     return
   }
   selectedTaskId.value = taskId
+  stopPolling()
   showCreatePanel.value = false
   logLines.value = []
   await loadMetrics(taskId)

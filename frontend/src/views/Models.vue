@@ -70,6 +70,36 @@
       </el-table>
     </div>
   </div>
+
+  <!-- 模型详情弹窗 -->
+  <el-dialog v-model="detailVisible" title="模型详情" width="800px" top="5vh">
+    <div v-if="detailData" class="space-y-4">
+      <h4 class="font-semibold text-gray-800 text-lg">{{ detailData.model?.model_name }}</h4>
+      <el-divider class="my-2" />
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="space-y-2">
+          <div><span class="text-gray-500">任务名称: </span>{{ detailData.model?.task_name }}</div>
+          <div><span class="text-gray-500">状态: </span><el-tag :type="statusTagType(detailData.model?.status)" size="small">{{ statusTagLabel(detailData.model?.status) }}</el-tag></div>
+          <div><span class="text-gray-500">Epochs: </span>{{ epochDisplay(detailData.task_detail?.current_epoch, detailData.task_detail?.total_epochs, detailData.task_detail?.status) }}</div>
+          <div v-if="detailData.task_detail?.description"><span class="text-gray-500">描述: </span>{{ detailData.task_detail?.description }}</div>
+        </div>
+        <div class="space-y-2">
+          <div><span class="text-gray-500">最佳 mAP50: </span><strong>{{ detailData.model?.best_metric?.toFixed(4) || "-" }}</strong></div>
+          <div><span class="text-gray-500">文件大小: </span>{{ formatSize(detailData.model?.file_size) }}</div>
+          <div><span class="text-gray-500">训练耗时: </span>{{ formatDuration(detailData.model?.duration_seconds) }}</div>
+        </div>
+      </div>
+
+      <!-- 指标图表 -->
+      <div v-if="detailMetrics.length > 0" class="border-t pt-4">
+        <h4 class="text-sm font-semibold text-gray-700 mb-2">训练指标</h4>
+        <v-chart :option="detailChartOption" autoresize class="w-full" style="height: 280px" />
+      </div>
+      <div v-else class="border-t pt-4 text-center text-gray-400">
+        <p>暂无指标数据</p>
+      </div>
+    </div>
+  </el-dialog>
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
@@ -91,13 +121,45 @@ const importLoading = ref(false)
 const detailVisible = ref(false)
 const detailData = ref<any>(null)
 const detailMetrics = ref<MetricItem[]>([])
+const detailChartOption = computed(() => {
+  if (detailMetrics.value.length === 0) return {}
+  const epochs = detailMetrics.value.map(m => m.epoch)
+  const keys = new Set<string>()
+  for (const m of detailMetrics.value) for (const k of Object.keys(m.metrics)) keys.add(k)
+  const important = ['train/box_loss','train/cls_loss','metrics/mAP50','metrics/mAP50-95','metrics/recall','metrics/precision']
+  const lines = important.filter(k => keys.has(k))
+  const series = lines.map(key => ({
+    name: key,
+    type: 'line' as const,
+    smooth: true,
+    symbol: 'none',
+    data: detailMetrics.value.map(m => m.metrics[key] ?? null),
+  }))
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { type: 'scroll', textStyle: { fontSize: 11 } },
+    grid: { left: 50, right: 20, top: 40, bottom: 30 },
+    xAxis: { type: 'category', data: epochs, name: 'Epoch' },
+    yAxis: { type: 'value' },
+    series,
+  }
+})
+
+function epochDisplay(current: number | undefined, total: number | undefined, status: string | undefined): string {
+  if (current === undefined || total === undefined || total === 0) return '0 / 0'
+  if (status === "pending" && current === 0) return `0 / ${total}`
+  const done = Math.min(current + 1, total)
+  return `${done} / ${total}`
+}
+
 function formatSize(bytes: number | null) {
   if (!bytes) return '-'
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / 1048576).toFixed(2) + ' MB'
 }
-function formatDuration(seconds: number) {
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || seconds <= 0) return '-'
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   const s = Math.floor(seconds % 60)
