@@ -23,8 +23,12 @@ def list_models(
     current_user: User = Depends(get_required_user),
 ):
     """获取所有训练完成的模型列表"""
-    models = training_service.get_models(db)
-    return {"total": len(models), "items": models}
+    try:
+        models = training_service.get_models(db)
+        return {"total": len(models), "items": models}
+    except Exception as e:
+        logger.error(f"获取模型列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取模型列表失败: {str(e)}")
 
 
 @router.get("/{model_name}")
@@ -34,10 +38,16 @@ def get_model_detail(
     current_user: User = Depends(get_required_user),
 ):
     """获取模型详情（含训练指标数据）"""
-    detail = training_service.get_model_detail(model_name, db)
-    if "error" in detail:
-        raise HTTPException(status_code=404, detail=detail["error"])
-    return detail
+    try:
+        detail = training_service.get_model_detail(model_name, db)
+        if "error" in detail:
+            raise HTTPException(status_code=404, detail=detail["error"])
+        return detail
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取模型详情失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{model_name}/export")
@@ -102,11 +112,15 @@ def set_default_model(
 @router.get("/default/info")
 def get_default_model():
     """获取当前默认模型信息"""
-    from app.services.training_service import _get_default_model
-    model_name = _get_default_model()
-    if model_name:
-        return {"model_name": model_name}
-    return {"model_name": None, "message": "未设置默认模型，系统将使用 YOLO 预训练模型"}
+    try:
+        from app.services.training_service import _get_default_model
+        model_name = _get_default_model()
+        if model_name:
+            return {"model_name": model_name}
+        return {"model_name": None, "message": "未设置默认模型，系统将使用 YOLO 预训练模型"}
+    except Exception as e:
+        logger.error(f"获取默认模型失败: {e}", exc_info=True)
+        return {"model_name": None, "message": str(e)}
 
 
 @router.delete("/{model_name}")

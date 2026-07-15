@@ -59,9 +59,13 @@ def list_datasets(
     current_user: User = Depends(get_required_user),
 ):
     """获取所有数据集列表"""
-    datasets = db.query(Dataset).order_by(Dataset.created_at.desc()).all()
-    items = [DatasetResponse.model_validate(d) for d in datasets]
-    return {"total": len(items), "items": items}
+    try:
+        datasets = db.query(Dataset).order_by(Dataset.created_at.desc()).all()
+        items = [DatasetResponse.model_validate(d) for d in datasets]
+        return {"total": len(items), "items": items}
+    except Exception as e:
+        logger.error(f"获取数据集列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取数据集列表失败: {str(e)}")
 
 
 @router.get("/{dataset_id}/preview", response_model=DatasetPreviewResponse)
@@ -95,8 +99,12 @@ def get_storage_info(
     current_user: User = Depends(get_required_user),
 ):
     """获取磁盘空间信息"""
-    info = training_service.get_storage_info()
-    return info
+    try:
+        info = training_service.get_storage_info()
+        return info
+    except Exception as e:
+        logger.error(f"获取存储信息失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/storage/clean")
@@ -104,5 +112,9 @@ def clean_storage(
     current_user: User = Depends(get_required_user),
 ):
     """清理失败的训练任务产生的临时文件"""
-    result = training_service.clean_failed_temp_files()
-    return result
+    try:
+        result = training_service.clean_failed_temp_files()
+        return result
+    except Exception as e:
+        logger.error(f"清理存储失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

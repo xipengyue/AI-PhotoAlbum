@@ -227,7 +227,7 @@ def upload_dataset(file_bytes: bytes, filename: str, db: Session) -> Dataset:
     total_size = sum(f.stat().st_size for f in dataset_dir.rglob("*") if f.is_file())
 
     dataset = Dataset(
-        name=name,
+        name=stem,
         path=str(dataset_dir),
         image_count=image_count,
         class_names=class_names if class_names else [],

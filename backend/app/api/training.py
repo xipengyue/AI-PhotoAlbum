@@ -62,13 +62,17 @@ def list_training_tasks(
     current_user: User = Depends(get_required_user),
 ):
     """获取训练任务列表"""
-    query = db.query(TrainingTask).order_by(TrainingTask.created_at.desc())
-    if status:
-        query = query.filter(TrainingTask.status == status)
-    tasks = query.all()
+    try:
+        query = db.query(TrainingTask).order_by(TrainingTask.created_at.desc())
+        if status:
+            query = query.filter(TrainingTask.status == status)
+        tasks = query.all()
 
-    items = [TrainingTaskResponse.model_validate(t) for t in tasks]
-    return TrainingTaskListResponse(total=len(items), items=items)
+        items = [TrainingTaskResponse.model_validate(t) for t in tasks]
+        return TrainingTaskListResponse(total=len(items), items=items)
+    except Exception as e:
+        logger.error(f"获取训练任务列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取训练任务列表失败: {str(e)}")
 
 
 @router.get("/tasks/{task_id}", response_model=TrainingTaskDetailResponse)
