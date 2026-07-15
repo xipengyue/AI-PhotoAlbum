@@ -6,6 +6,7 @@ export interface PhotoListParams {
   page_size?: number
   sort_by?: string
   order?: string
+  is_deleted?: boolean
 }
 
 export const photoApi = {

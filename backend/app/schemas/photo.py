@@ -140,6 +140,7 @@ class PhotoListItem(BaseModel):
     file_type: str = "image"
     file_size: Optional[int] = None
     is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
     # 列表中也带简要的描述信息，方便前端展示标签
     tags: Optional[list] = None
     quality_score: Optional[float] = None

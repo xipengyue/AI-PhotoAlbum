@@ -80,7 +80,7 @@ function daysLeft(photo: PhotoItem): number {
 async function fetchRecycleBin() {
   loading.value = true
   try {
-    const res = await photoApi.list({ is_deleted: true } as any)
+    const res = await photoApi.list({ is_deleted: true })
     photos.value = res.data.items || []
   } catch {
     // handled by interceptor

@@ -110,6 +110,7 @@ def list_photos(
     date_from: Optional[datetime] = Query(default=None, description="拍摄时间起始"),
     date_to: Optional[datetime] = Query(default=None, description="拍摄时间截止"),
     album_id: Optional[str] = Query(default=None, description="按相册筛选"),
+    is_deleted: bool = Query(default=False, description="true=查看回收站"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_required_user),
 ):
@@ -117,7 +118,7 @@ def list_photos(
     照片列表（分页 + 多维度筛选）
 
     支持按时间范围、文件类型、相册筛选，以及多种排序方式。
-    列表项仅返回缩略信息，不含 AI 描述和人脸等嵌套数据以减少传输量。
+    is_deleted=true 时返回回收站中的照片。
     """
     album_uuid = uuid.UUID(album_id) if album_id else None
 
@@ -132,7 +133,7 @@ def list_photos(
         date_from=date_from,
         date_to=date_to,
         album_id=album_uuid,
-        is_deleted=False,
+        is_deleted=is_deleted,
     )
 
     items = []
@@ -155,6 +156,7 @@ def list_photos(
             file_type=p.file_type.value if hasattr(p.file_type, 'value') else str(p.file_type),
             file_size=p.file_size,
             is_deleted=p.is_deleted,
+            deleted_at=p.deleted_at,
             tags=tags,
             quality_score=quality_score,
         ))
