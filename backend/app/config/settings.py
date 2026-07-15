@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # ── 数据库 ────────────────────────────────────────
-    DATABASE_URL: str = "postgresql://album:album@localhost:5432/photo_album"
+    DATABASE_URL: str = "postgresql://album:album@localhost:5433/photo_album"
 
     # ── JWT 认证 ──────────────────────────────────────
     JWT_SECRET_KEY: str = "change-me-to-a-random-secret-key"
