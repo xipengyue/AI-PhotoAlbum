@@ -123,6 +123,18 @@ def get_default_model():
         return {"model_name": None, "message": str(e)}
 
 
+@router.post("/default/reset")
+def reset_default_model(
+    current_user: User = Depends(get_required_user),
+):
+    """将默认模型重置为 YOLOv26"""
+    try:
+        training_service.reset_default_model()
+        return {"message": "已重置为 YOLOv26 预训练模型", "model_name": None}
+    except Exception as e:
+        logger.error(f"重置默认模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/{model_name}")
 def delete_model(
     model_name: str,

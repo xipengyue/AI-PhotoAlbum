@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # ── 应用信息 ──────────────────────────────────────
     APP_NAME: str = "AI-PhotoAlbum"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
     # ── 数据库 ────────────────────────────────────────
