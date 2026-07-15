@@ -574,7 +574,7 @@ def delete_training_task(task_id: str, db: Session) -> bool:
 def get_models(db: Session) -> List[Dict[str, Any]]:
     """获取所有训练完成的模型列表"""
     tasks = (db.query(TrainingTask)
-             .filter(TrainingTask.status.in_(["completed"]))
+             .filter(TrainingTask.status.in_(["completed", "failed", "running", "paused"]))
              .order_by(TrainingTask.completed_at.desc()).all())
     default_model = _get_default_model()
     models = []

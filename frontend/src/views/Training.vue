@@ -227,11 +227,47 @@
       </div>
 
       <!-- 未选择任务时的引导 -->
-      <div v-else class="flex-1 flex items-center justify-center">
-        <div class="text-center text-gray-400">
-          <el-icon :size="64"><TrendCharts /></el-icon>
-          <p class="mt-4 text-lg">选择左侧任务或创建新训练</p>
-          <p class="mt-1 text-sm">配置数据集和超参数，启动 YOLO 模型训练</p>
+      <div v-else class="flex-1 flex flex-col gap-4 overflow-y-auto p-2">
+        <!-- 任务统计卡片 -->
+        <div class="grid grid-cols-4 gap-4">
+          <div class="bg-white rounded-lg border p-4 text-center">
+            <div class="text-sm text-gray-500 mb-1">全部任务</div>
+            <div class="text-2xl font-bold text-blue-600">{{ taskStats.total }}</div>
+          </div>
+          <div class="bg-white rounded-lg border p-4 text-center">
+            <div class="text-sm text-gray-500 mb-1">训练中</div>
+            <div class="text-2xl font-bold text-yellow-600">{{ taskStats.running }}</div>
+          </div>
+          <div class="bg-white rounded-lg border p-4 text-center">
+            <div class="text-sm text-gray-500 mb-1">已完成</div>
+            <div class="text-2xl font-bold text-green-600">{{ taskStats.completed }}</div>
+          </div>
+          <div class="bg-white rounded-lg border p-4 text-center">
+            <div class="text-sm text-gray-500 mb-1">失败</div>
+            <div class="text-2xl font-bold text-red-600">{{ taskStats.failed }}</div>
+          </div>
+        </div>
+        <!-- 最近任务列表 -->
+        <div class="bg-white rounded-lg border p-3 flex-1">
+          <h4 class="text-sm font-semibold text-gray-700 mb-3">最近训练任务</h4>
+          <el-table :data="taskList.slice(0, 6)" empty-text="暂无训练任务" style="width: 100%">
+            <el-table-column prop="task_name" label="任务" min-width="120" />
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="进度" width="90" align="center">
+              <template #default="{ row }">{{ row.current_epoch }}/{{ row.total_epochs }}</template>
+            </el-table-column>
+            <el-table-column prop="best_metric" label="mAP50" width="90" align="center">
+              <template #default="{ row }">{{ row.best_metric?.toFixed(4) || '-' }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <!-- 快速操作提示 -->
+        <div class="bg-blue-50 rounded-lg border border-blue-200 p-3 text-sm text-blue-700">
+          点击上方「新建训练」开始一个新的训练任务，或从下拉列表中选择已有任务查看详情。
         </div>
       </div>
     </div>
@@ -322,6 +358,14 @@ const form = ref<CreateTaskParams>({
 })
 
 // ── 计算属性 ─────────────────────────────────────────────────────
+const taskStats = computed(() => {
+  const stats = { total: taskList.value.length, running: 0, completed: 0, failed: 0, paused: 0, pending: 0 }
+  for (const t of taskList.value) {
+    if (stats[t.status as keyof typeof stats] !== undefined)
+      stats[t.status as keyof typeof stats]++
+  }
+  return stats
+})
 
 const selectedTask = computed(() => {
   if (!selectedTaskId.value) return null

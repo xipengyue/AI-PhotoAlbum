@@ -22,9 +22,7 @@
         <el-table-column prop="task_name" label="任务名称" min-width="160" />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'completed' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'completed' ? '已完成' : '失败' }}
-            </el-tag>
+            <el-tag :type="statusTagType(row.status)" size="small">{{ statusTagLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="mAP50" label="mAP50" width="90" align="center">
@@ -183,4 +181,12 @@ async function showDetail(model: ModelInfo) {
   }
 }
 onMounted(() => { loadModels() })
+function statusTagType(status: string) {
+  const m: Record<string, string> = { pending: 'info', running: 'warning', paused: '', completed: 'success', failed: 'danger' }
+  return m[status] || 'info'
+}
+function statusTagLabel(status: string) {
+  const m: Record<string, string> = { pending: '待开始', running: '训练中', paused: '已暂停', completed: '已完成', failed: '失败' }
+  return m[status] || status
+}
 </script>
