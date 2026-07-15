@@ -1,6 +1,6 @@
 <template>
   <div class="h-full flex flex-col space-y-4">
-    <h2 class="text-xl font-bold text-gray-800">数据库管理</h2>
+    <h2 class="text-xl font-bold text-gray-800">数据集管理</h2>
     <el-tabs v-model="activeTab" type="border-card" class="flex-1 flex flex-col">
       <el-tab-pane label="数据集管理" name="datasets">
         <div class="flex items-center justify-between mb-4">

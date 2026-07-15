@@ -83,7 +83,7 @@ const routes: RouteRecordRaw[] = [
         path: 'database',
         name: 'Database',
         component: () => import('@/views/Database.vue'),
-        meta: { title: '数据库管理', icon: 'DataBoard' },
+        meta: { title: '数据集管理', icon: 'DataBoard' },
       },
     ],
   },

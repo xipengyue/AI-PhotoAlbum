@@ -64,7 +64,7 @@
       </el-menu-item>
       <el-menu-item index="/database">
         <el-icon><DataBoard /></el-icon>
-        <span>数据库管理</span>
+        <span>数据集管理</span>
       </el-menu-item>
     </el-menu>
 
