@@ -7,6 +7,7 @@ LangGraph 检索代理
 import logging
 from typing import Any, Dict, List, Optional, TypedDict
 from sqlalchemy.orm import Session
+from langchain_core.runnables import RunnableConfig
 
 from app.services.search_service import (
     extract_nouns, extract_person_names, clip_search_by_text,
@@ -30,7 +31,14 @@ class SearchState(TypedDict):
     error: Optional[str]
 
 
-def extract_entities(state: SearchState, db: Session) -> SearchState:
+def _get_db(config: Optional[RunnableConfig]) -> Optional[Session]:
+    """从 LangGraph config 中提取 db session"""
+    if config and "configurable" in config:
+        return config["configurable"].get("db")
+    return None
+
+
+def extract_entities(state: SearchState, config: RunnableConfig) -> SearchState:
     query = state.get("query", "")
     if not query:
         state["error"] = "empty query"
@@ -40,7 +48,8 @@ def extract_entities(state: SearchState, db: Session) -> SearchState:
     return state
 
 
-def recognize_person(state: SearchState, db: Session) -> SearchState:
+def recognize_person(state: SearchState, config: RunnableConfig) -> SearchState:
+    db = _get_db(config)
     person_names = state.get("person_names", [])
     owner_id = state.get("owner_id")
     state["needs_confirmation"] = False
@@ -62,7 +71,8 @@ def recognize_person(state: SearchState, db: Session) -> SearchState:
     return state
 
 
-def clip_search(state: SearchState, db: Session) -> SearchState:
+def clip_search(state: SearchState, config: RunnableConfig) -> SearchState:
+    db = _get_db(config)
     query = state.get("query", "")
     nouns = state.get("nouns", [])
     owner_id = state.get("owner_id")
@@ -71,7 +81,8 @@ def clip_search(state: SearchState, db: Session) -> SearchState:
     return state
 
 
-def merge_results(state: SearchState, db: Session) -> SearchState:
+def merge_results(state: SearchState, config: RunnableConfig) -> SearchState:
+    db = _get_db(config)
     person_ids = set(state.get("person_photo_ids", []))
     clip_results = state.get("clip_results", [])
     if not clip_results:
@@ -145,7 +156,7 @@ def run_search_agent(
         "pending_candidates": [],
         "error": None,
     }
-    return _search_graph.invoke(initial_state, config={"db": db})
+    return _search_graph.invoke(initial_state, config={"configurable": {"db": db}})
 
 
 __all__ = ["SearchState", "build_search_graph", "run_search_agent"]

@@ -156,7 +156,7 @@ def _tag_fallback_search(
     """
     降级方案：使用 description / tags 文本 LIKE 匹配
     """
-    from sqlalchemy import or_
+    from sqlalchemy import or_, cast, String
     from app.models.description import ImageDescription
 
     keywords = extract_nouns(query_text)
@@ -167,7 +167,7 @@ def _tag_fallback_search(
     for kw in keywords[:3]:
         kw_pattern = f"%{kw}%"
         conditions.append(ImageDescription.description.like(kw_pattern))
-        conditions.append(ImageDescription.tags.astext.like(kw_pattern))
+        conditions.append(cast(ImageDescription.tags, String).like(kw_pattern))
 
     query = db.query(ImageDescription).filter(or_(*conditions))
 

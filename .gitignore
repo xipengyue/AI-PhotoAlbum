@@ -59,3 +59,4 @@ backend/data/models/
 # ── OS ──────────────────────────────────────────────────
 *.tmp
 *.temp
+backend/yolo11n.pt
