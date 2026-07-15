@@ -2,7 +2,12 @@
   <div class="h-full flex flex-col space-y-4">
     <!-- 页面标题与操作栏 -->
     <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <el-button v-if="selectedTask" size="small" @click="selectedTaskId = null">
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
       <h2 class="text-xl font-bold text-gray-800">模型训练</h2>
+      </div>
       <div class="flex items-center space-x-3">
         <el-button type="primary" @click="createDialogVisible = true">
           <el-icon><Plus /></el-icon> 新建训练
@@ -27,9 +32,6 @@
             </span>
           </div>
          <div class="flex space-x-2">
-            <el-button size="small" @click="selectedTaskId = null">
-              <el-icon><ArrowLeft /></el-icon> 返回
-            </el-button>
            <el-button v-if="selectedTask.status === 'pending' || selectedTask.status === 'failed'"
               type="primary" size="small" @click="startTask" :loading="controlLoading">
               <el-icon><VideoPlay /></el-icon> 开始训练
