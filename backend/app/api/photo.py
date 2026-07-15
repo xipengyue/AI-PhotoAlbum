@@ -262,7 +262,7 @@ def get_photo_file(
     - ?download=false → 浏览器内嵌显示
     - ?download=true  → 触发文件下载
     """
-    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id)
+    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id, include_deleted=True)
     if not photo:
         raise HTTPException(status_code=404, detail="照片不存在")
 
