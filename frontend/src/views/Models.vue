@@ -3,14 +3,14 @@
     <div class="flex items-center justify-between">
       <div class="flex items-center space-x-3">
         <h2 class="text-xl font-bold text-gray-800">模型管理</h2>
-<el-tag v-if="defaultModel" type="success" effect="plain" size="small">
-          当前默认: {{ defaultModel }}
+        <el-tag v-if="defaultModel" type="success" effect="plain" size="small">
+         当前默认: {{ defaultModel }}
         </el-tag>
-        <el-button v-if="defaultModel" link type="warning" size="small" @click="handleResetDefault">
-          重置为YOLO26
-        </el-button>
       </div>
       <div class="flex items-center space-x-3">
+        <el-button v-if="defaultModel" type="warning" @click="handleResetDefault">
+          重置为YOLO26
+        </el-button>
         <el-button type="primary" @click="importDialogVisible = true">
           <el-icon><Upload /></el-icon> 导入模型
         </el-button>
