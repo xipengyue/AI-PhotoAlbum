@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <div class="h-full flex flex-col space-y-4">
     <!-- 页面标题与操作栏 -->
     <div class="flex items-center justify-between">
       <h2 class="text-xl font-bold text-gray-800">模型训练</h2>
       <div class="flex items-center space-x-3">
-        <el-button type="primary" @click="showCreatePanel = true">
+        <el-button type="primary" @click="createDialogVisible = true">
           <el-icon><Plus /></el-icon> 新建训练
         </el-button>
         <el-button @click="refreshTaskList">
@@ -14,178 +14,6 @@
     </div>
 
     <div class="flex flex-1 gap-4 overflow-hidden">
-      <!-- 左侧：创建/配置面板 -->
-      <div v-show="showCreatePanel || !selectedTaskId" class="w-[420px] shrink-0 overflow-y-auto bg-white rounded-lg border p-4">
-        <h3 class="text-base font-semibold mb-4">创建训练任务</h3>
-        <el-form :model="form" label-width="100px" size="small">
-          <!-- 基础信息 -->
-          <el-divider content-position="left">基础信息</el-divider>
-          <el-form-item label="任务名称" required>
-            <el-input v-model="form.task_name" placeholder="如：我的家庭相册检测模型" />
-          </el-form-item>
-          <el-form-item label="模型命名" required>
-            <el-input v-model="form.model_name" placeholder="如：family_v1" />
-          </el-form-item>
-          <el-form-item label="训练描述">
-            <el-input v-model="form.description" type="textarea" :rows="2" placeholder="对本次训练任务的说明（选填）" />
-          </el-form-item>
-
-          <!-- 数据集配置 -->
-          <el-divider content-position="left">数据集配置</el-divider>
-          <el-form-item label="数据来源" required>
-            <el-radio-group v-model="datasetMode">
-              <el-radio value="select">选择已有数据集</el-radio>
-              <el-radio value="upload">上传新数据集</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item v-if="datasetMode === 'select'" label="数据集" required>
-            <el-select v-model="form.dataset_id" placeholder="选择已有数据集" clearable style="width: 100%">
-              <el-option v-for="ds in datasetList" :key="ds.id" :label="`${ds.name} (${ds.image_count}张, ${ds.class_count}类)`" :value="ds.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item v-if="datasetMode === 'upload'" label="数据集文件" required>
-            <div class="flex items-center space-x-3 w-full">
-              <el-upload
-                ref="uploadRef"
-                :auto-upload="false"
-                :show-file-list="false"
-                :on-change="handleFileChange"
-                accept=".zip,.tar,.tar.gz,.tgz,.tar.bz2,.7z,.rar"
-                :limit="1"
-              >
-                <el-button type="primary">
-                  <el-icon><UploadFilled /></el-icon>
-                  {{ datasetFile ? '重新选择' : '选择文件' }}
-                </el-button>
-              </el-upload>
-              <span v-if="datasetFile" class="text-sm text-gray-600">{{ datasetFile.name }}</span>
-              <span v-else class="text-sm text-gray-400">支持 .zip / .tar / .tar.gz / .7z / .rar</span>
-            </div>
-          </el-form-item>
-          <el-form-item label="验证集比例">
-            <el-slider v-model="form.config.val_split" :min="0" :max="0.5" :step="0.05" show-input style="width: 180px" />
-          </el-form-item>
-          <el-form-item label="使用默认划分">
-            <el-switch v-model="form.config.use_dataset_split" />
-            <span class="text-gray-400 text-xs ml-2">使用原数据集默认的 train/val 划分</span>
-          </el-form-item>
-
-          <!-- 模型参数 -->
-          <el-divider content-position="left">模型参数</el-divider>
-          <el-form-item label="预训练模型">
-            <el-input v-model="form.config.pretrained_model" placeholder="yolo26n.pt" />
-          </el-form-item>
-          <el-row :gutter="8">
-            <el-col :span="8">
-              <el-form-item label="imgsz" label-width="50px">
-                <el-input-number v-model="form.config.imgsz" :min="320" :max="1280" :step="32" controls-position="right" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="epochs" label-width="55px">
-                <el-input-number v-model="form.config.epochs" :min="1" :max="1000" controls-position="right" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item label="batch" label-width="50px">
-                <el-input-number v-model="form.config.batch" :min="1" :max="256" controls-position="right" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="8">
-            <el-col :span="12">
-              <el-form-item label="学习率" label-width="60px">
-                <el-input-number v-model="form.config.lr0" :min="0.0001" :max="0.1" :step="0.001" :precision="4" controls-position="right" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="优化器" label-width="60px">
-                <el-select v-model="form.config.optimizer">
-                  <el-option label="SGD" value="SGD" />
-                  <el-option label="Adam" value="Adam" />
-                  <el-option label="AdamW" value="AdamW" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <!-- 高级选项（可折叠） -->
-          <el-collapse>
-            <el-collapse-item title="高级选项" name="advanced">
-              <el-row :gutter="8">
-                <el-col :span="12">
-                  <el-form-item label="动量" label-width="50px">
-                    <el-input-number v-model="form.config.momentum" :min="0" :max="1" :step="0.01" :precision="3" controls-position="right" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="权重衰减" label-width="70px">
-                    <el-input-number v-model="form.config.weight_decay" :min="0" :max="0.1" :step="0.0001" :precision="4" controls-position="right" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-row :gutter="8">
-                <el-col :span="12">
-                  <el-form-item label="预热轮数" label-width="70px">
-                    <el-input-number v-model="form.config.warmup_epochs" :min="0" :max="50" controls-position="right" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="工作线程" label-width="70px">
-                    <el-input-number v-model="form.config.workers" :min="0" :max="32" controls-position="right" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-row :gutter="8">
-                <el-col :span="12">
-                  <el-form-item label="随机种子" label-width="70px">
-                    <el-input-number v-model="form.config.seed" :min="0" :max="99999" controls-position="right" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="保存间隔" label-width="70px">
-                    <el-input-number v-model="form.config.save_period" :min="-1" :max="100" controls-position="right" />
-                    <span class="text-gray-400 text-xs ml-1">(-1 仅保存最后)</span>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-form-item label="早停耐心">
-                <el-input-number v-model="form.config.patience" :min="0" :max="500" controls-position="right" />
-                <span class="text-gray-400 text-xs ml-2">验证集 loss 连续 N 轮不下降则停止</span>
-              </el-form-item>
-              <el-divider content-position="left">数据增强</el-divider>
-              <el-form-item label="多尺度训练">
-                <el-switch v-model="form.config.multi_scale" />
-              </el-form-item>
-              <el-form-item label="MixUp">
-                <el-slider v-model="form.config.mixup" :min="0" :max="1" :step="0.1" show-input style="width: 180px" />
-              </el-form-item>
-              <el-form-item label="Mosaic">
-                <el-slider v-model="form.config.mosaic" :min="0" :max="1" :step="0.1" show-input style="width: 180px" />
-              </el-form-item>
-              <el-form-item label="Copy-Paste">
-                <el-slider v-model="form.config.copy_paste" :min="0" :max="1" :step="0.1" show-input style="width: 180px" />
-              </el-form-item>
-              <el-divider content-position="left">硬件配置</el-divider>
-              <el-form-item label="设备选择">
-                <el-radio-group v-model="form.config.device">
-                  <el-radio value="">自动检测</el-radio>
-                  <el-radio value="cpu">CPU</el-radio>
-                  <el-radio value="0">CUDA:0</el-radio>
-                </el-radio-group>
-              </el-form-item>
-            </el-collapse-item>
-          </el-collapse>
-
-          <div class="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-3">
-            <el-button @click="showCreatePanel = false">取消</el-button>
-            <el-button type="primary" @click="createTask" :loading="creating">
-              <el-icon><Check /></el-icon> 创建任务
-            </el-button>
-          </div>
-        </el-form>
-      </div>
-
       <!-- 右侧：监控面板 -->
       <div v-if="selectedTask" class="flex-1 flex flex-col space-y-3 overflow-hidden">
         <!-- 任务信息栏 -->
@@ -291,6 +119,176 @@
       </div>
     </div>
 
+    <!-- 创建训练任务对话框 -->
+    <el-dialog v-model="createDialogVisible" title="创建训练任务" width="650px" top="3vh" :close-on-click-modal="false">
+      <el-form :model="form" label-width="100px" size="small">
+        <!-- 基础信息 -->
+        <el-divider content-position="left">基础信息</el-divider>
+        <el-form-item label="任务名称" required>
+          <el-input v-model="form.task_name" placeholder="如：我的家庭相册检测模型" />
+        </el-form-item>
+        <el-form-item label="模型命名" required>
+          <el-input v-model="form.model_name" placeholder="如：family_v1" />
+        </el-form-item>
+        <el-form-item label="训练描述">
+          <el-input v-model="form.description" type="textarea" :rows="2" placeholder="对本次训练任务的说明（选填）" />
+        </el-form-item>
+
+        <!-- 数据集配置 -->
+        <el-divider content-position="left">数据集配置</el-divider>
+        <el-form-item label="数据来源" required>
+          <el-radio-group v-model="datasetMode">
+            <el-radio value="select">选择已有数据集</el-radio>
+            <el-radio value="upload">上传新数据集</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="datasetMode === 'select'" label="数据集" required>
+          <el-select v-model="form.dataset_id" placeholder="选择已有数据集" clearable style="width: 100%">
+            <el-option v-for="ds in datasetList" :key="ds.id" :label="`${ds.name} (${ds.image_count}张, ${ds.class_count}类)`" :value="ds.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="datasetMode === 'upload'" label="数据集文件" required>
+          <div class="flex items-center space-x-3 w-full">
+            <el-upload
+              ref="uploadRef"
+              :auto-upload="false"
+              :show-file-list="false"
+              :on-change="handleFileChange"
+              accept=".zip,.tar,.tar.gz,.tgz,.tar.bz2,.7z,.rar"
+              :limit="1"
+            >
+              <el-button type="primary">
+                <el-icon><UploadFilled /></el-icon>
+                {{ datasetFile ? '重新选择' : '选择文件' }}
+              </el-button>
+            </el-upload>
+            <span v-if="datasetFile" class="text-sm text-gray-600">{{ datasetFile.name }}</span>
+            <span v-else class="text-sm text-gray-400">支持 .zip / .tar / .tar.gz / .7z / .rar</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="验证集比例">
+          <el-slider v-model="form.config.val_split" :min="0" :max="0.5" :step="0.05" show-input style="width: 180px" />
+        </el-form-item>
+        <el-form-item label="使用默认划分">
+          <el-switch v-model="form.config.use_dataset_split" />
+          <span class="text-gray-400 text-xs ml-2">使用原数据集默认的 train/val 划分</span>
+        </el-form-item>
+
+        <!-- 模型参数 -->
+        <el-divider content-position="left">模型参数</el-divider>
+        <el-form-item label="预训练模型">
+          <el-input v-model="form.config.pretrained_model" placeholder="yolo26n.pt" />
+        </el-form-item>
+        <el-row :gutter="8">
+          <el-col :span="8">
+            <el-form-item label="imgsz" label-width="50px">
+              <el-input-number v-model="form.config.imgsz" :min="320" :max="1280" :step="32" controls-position="right" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="epochs" label-width="55px">
+              <el-input-number v-model="form.config.epochs" :min="1" :max="1000" controls-position="right" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="batch" label-width="50px">
+              <el-input-number v-model="form.config.batch" :min="1" :max="256" controls-position="right" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="8">
+          <el-col :span="12">
+            <el-form-item label="学习率" label-width="60px">
+              <el-input-number v-model="form.config.lr0" :min="0.0001" :max="0.1" :step="0.001" :precision="4" controls-position="right" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="优化器" label-width="60px">
+              <el-select v-model="form.config.optimizer">
+                <el-option label="SGD" value="SGD" />
+                <el-option label="Adam" value="Adam" />
+                <el-option label="AdamW" value="AdamW" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 高级选项（可折叠） -->
+        <el-collapse>
+          <el-collapse-item title="高级选项" name="advanced">
+            <el-row :gutter="8">
+              <el-col :span="12">
+                <el-form-item label="动量" label-width="50px">
+                  <el-input-number v-model="form.config.momentum" :min="0" :max="1" :step="0.01" :precision="3" controls-position="right" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="权重衰减" label-width="70px">
+                  <el-input-number v-model="form.config.weight_decay" :min="0" :max="0.1" :step="0.0001" :precision="4" controls-position="right" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="8">
+              <el-col :span="12">
+                <el-form-item label="预热轮数" label-width="70px">
+                  <el-input-number v-model="form.config.warmup_epochs" :min="0" :max="50" controls-position="right" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="工作线程" label-width="70px">
+                  <el-input-number v-model="form.config.workers" :min="0" :max="32" controls-position="right" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="8">
+              <el-col :span="12">
+                <el-form-item label="随机种子" label-width="70px">
+                  <el-input-number v-model="form.config.seed" :min="0" :max="99999" controls-position="right" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="保存间隔" label-width="70px">
+                  <el-input-number v-model="form.config.save_period" :min="-1" :max="100" controls-position="right" />
+                  <span class="text-gray-400 text-xs ml-1">(-1 仅保存最后)</span>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="早停耐心">
+              <el-input-number v-model="form.config.patience" :min="0" :max="500" controls-position="right" />
+              <span class="text-gray-400 text-xs ml-2">验证集 loss 连续 N 轮不下降则停止</span>
+            </el-form-item>
+            <el-divider content-position="left">数据增强</el-divider>
+            <el-form-item label="多尺度训练">
+              <el-switch v-model="form.config.multi_scale" />
+            </el-form-item>
+            <el-form-item label="MixUp">
+              <el-slider v-model="form.config.mixup" :min="0" :max="1" :step="0.1" show-input style="width: 180px" />
+            </el-form-item>
+            <el-form-item label="Mosaic">
+              <el-slider v-model="form.config.mosaic" :min="0" :max="1" :step="0.1" show-input style="width: 180px" />
+            </el-form-item>
+            <el-form-item label="Copy-Paste">
+              <el-slider v-model="form.config.copy_paste" :min="0" :max="1" :step="0.1" show-input style="width: 180px" />
+            </el-form-item>
+            <el-divider content-position="left">硬件配置</el-divider>
+            <el-form-item label="设备选择">
+              <el-radio-group v-model="form.config.device">
+                <el-radio value="">自动检测</el-radio>
+                <el-radio value="cpu">CPU</el-radio>
+                <el-radio value="0">CUDA:0</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="createTask" :loading="creating">
+          <el-icon><Check /></el-icon> 创建任务
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 停止确认对话框 -->
     <el-dialog v-model="stopDialogVisible" title="确认停止训练" width="400px">
       <p>确定要停止当前训练吗？</p>
@@ -333,7 +331,7 @@ use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent
 
 // ── 状态变量 ─────────────────────────────────────────────────────
 
-const showCreatePanel = ref(true)
+const createDialogVisible = ref(false)
 const creating = ref(false)
 const controlLoading = ref(false)
 const stopDialogVisible = ref(false)
@@ -553,12 +551,10 @@ async function refreshTaskList() {
 async function onTaskSelect(taskId: string) {
   if (!taskId) {
     selectedTaskId.value = null
-    showCreatePanel.value = true
     return
   }
   selectedTaskId.value = taskId
   stopPolling()
-  showCreatePanel.value = false
   logLines.value = []
   await loadMetrics(taskId)
 
@@ -602,7 +598,7 @@ async function createTask() {
       res = await trainingApi.createTask({ ...form.value })
     }
     ElMessage.success('训练任务创建成功')
-    showCreatePanel.value = false
+    createDialogVisible.value = false
     await loadTaskList()
     selectedTaskId.value = res.data.id
     await onTaskSelect(res.data.id)
@@ -704,7 +700,6 @@ async function deleteTask() {
     ElMessage.success('训练任务已删除')
     stopPolling()
     selectedTaskId.value = null
-    showCreatePanel.value = true
     logLines.value = []
     metricsData.value = []
     await loadTaskList()
