@@ -38,6 +38,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import { mapApi } from '@/api/map'
 import { photoApi } from '@/api/photo'
+import { wgs84ToGcj02 } from '@/utils/coord'
 import type { PhotoLocation } from '@/types/map'
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -45,6 +46,7 @@ const loading = ref(true)
 const locations = ref<PhotoLocation[]>([])
 
 let mapInstance: any = null
+let resizeObserver: ResizeObserver | null = null
 
 // 统计去重城市数
 const cities = computed(() => {
@@ -94,31 +96,42 @@ async function initMap() {
     zoomControl: true,
   })
 
-  // OpenStreetMap 瓦片
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19,
+  // 高德矢量路网瓦片（含注记），国内访问稳定
+  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+    subdomains: ['1', '2', '3', '4'],
+    attribution: '&copy; 高德地图',
+    maxZoom: 18,
+    keepBuffer: 4, // 平移/缩放时保留更多缓冲瓦片，减少空白
+    updateWhenZooming: false, // 缩放动画结束后再刷新瓦片，避免中间态留白
   }).addTo(mapInstance)
 
-  // 添加标记点
+  // 添加标记点（GPS 为 WGS-84，需转换为高德 GCJ-02 避免偏移）
   const bounds = L.latLngBounds([])
 
   locations.value.forEach((loc) => {
-    const marker = L.marker([loc.latitude, loc.longitude])
+    const [gcjLng, gcjLat] = wgs84ToGcj02(loc.longitude, loc.latitude)
+    const marker = L.marker([gcjLat, gcjLng])
     marker.bindPopup(buildPopupContent(loc), {
       maxWidth: 220,
       className: 'photo-popup',
     })
     marker.addTo(mapInstance)
-    bounds.extend([loc.latitude, loc.longitude])
+    bounds.extend([gcjLat, gcjLng])
   })
 
   // 自适应边界
   if (locations.value.length === 1) {
-    mapInstance.setView([locations.value[0].latitude, locations.value[0].longitude], 12)
+    const [gcjLng, gcjLat] = wgs84ToGcj02(locations.value[0].longitude, locations.value[0].latitude)
+    mapInstance.setView([gcjLat, gcjLng], 12)
   } else {
     mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
   }
+
+  // 监听容器尺寸变化（侧边栏折叠/窗口缩放），修正瓦片错位与空白
+  resizeObserver = new ResizeObserver(() => {
+    mapInstance?.invalidateSize()
+  })
+  resizeObserver.observe(mapContainer.value)
 }
 
 async function fetchLocations() {
@@ -126,7 +139,8 @@ async function fetchLocations() {
   try {
     const res = await mapApi.getLocations()
     locations.value = res.data
-  } catch {
+  } catch (error) {
+    console.error('[MapPage] 获取位置失败:', error)
     // handled by interceptor
   } finally {
     loading.value = false
@@ -140,6 +154,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
   if (mapInstance) {
     mapInstance.remove()
     mapInstance = null
