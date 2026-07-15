@@ -61,6 +61,24 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/SettingsPage.vue'),
         meta: { title: '设置', icon: 'Setting' },
       },
+      {
+        path: 'training',
+        name: 'Training',
+        component: () => import('@/views/Training.vue'),
+        meta: { title: '模型训练', icon: 'TrendCharts' },
+      },
+      {
+        path: 'models',
+        name: 'Models',
+        component: () => import('@/views/Models.vue'),
+        meta: { title: '模型管理', icon: 'Monitor' },
+      },
+      {
+        path: 'database',
+        name: 'Database',
+        component: () => import('@/views/Database.vue'),
+        meta: { title: '数据库管理', icon: 'DataBoard' },
+      },
     ],
   },
   {
