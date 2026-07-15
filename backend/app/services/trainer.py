@@ -123,7 +123,6 @@ def run_training(
     try:
         # ── 导入 YOLO ──────────────────────────────────────────
         from ultralytics import YOLO
-        from ultralytics.utils import yaml_load
 
         # ── 构造输出目录 ────────────────────────────────────────
         output_path = Path(output_dir)
@@ -181,6 +180,13 @@ def run_training(
         # ── 加载预训练模型或 checkpoint ─────────────────────────
         pretrained = config.get("pretrained_model", "yolo26n.pt")
 
+
+        # 将裸文件名解析到 data/models 目录，避免 YOLO 下载到当前工作目录
+        if "/" not in pretrained and "\\" not in pretrained and not pretrained.startswith("http"):
+            _pt_dir = Path("./data/models").resolve()
+            _pt_dir.mkdir(parents=True, exist_ok=True)
+            pretrained = str(_pt_dir / pretrained)
+        
         if checkpoint_path and Path(checkpoint_path).exists():
             logger.info(f"[训练器] 从 checkpoint 恢复训练: {checkpoint_path}")
             model = YOLO(checkpoint_path)

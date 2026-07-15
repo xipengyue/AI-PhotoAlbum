@@ -292,9 +292,9 @@ def create_dataset_yaml(dataset: Dataset, val_split: float = 0.2,
 
     class_names = dataset.class_names
     nc = len(class_names) or 1
-    data_dict = {"nc": nc, "names": class_names, "train": str(train_img_dir)}
+    data_dict = {"nc": nc, "names": class_names, "train": str(train_img_dir.resolve())}
     if val_img_dir and val_img_dir.exists():
-        data_dict["val"] = str(val_img_dir)
+        data_dict["val"] = str(val_img_dir.resolve())
 
     yaml_path = str(dataset_path / "data.yaml")
     with open(yaml_path, "w", encoding="utf-8") as f:
