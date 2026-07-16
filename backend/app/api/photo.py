@@ -422,6 +422,20 @@ def restore_photo(
 # 批量操作
 # ═══════════════════════════════════════════════════
 
+@router.post("/batch/delete", response_model=BaseResponse[dict])
+def batch_delete_photos(
+    req: BatchPhotoRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """
+    批量软删除照片（移入回收站）
+    """
+    photo_ids = [uuid.UUID(pid) for pid in req.photo_ids]
+    success, fail = photo_crud.batch_soft_delete(db, photo_ids, current_user.id)
+    return BaseResponse(data={"success_count": success, "fail_count": fail})
+
+
 @router.post("/batch", response_model=BaseResponse[PaginatedData])
 def batch_get_photos(
     req: BatchPhotoRequest,

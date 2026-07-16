@@ -207,6 +207,79 @@ def restore_photo(db: Session, photo: Photo) -> Photo:
     return photo
 
 
+def batch_soft_delete(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> Tuple[int, int]:
+    """批量软删除（移到回收站）"""
+    now = datetime.now()
+    photos = (
+        db.query(Photo)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, ~Photo.is_deleted)
+        .all()
+    )
+    for photo in photos:
+        photo.is_deleted = True
+        photo.deleted_at = now
+    db.commit()
+    return len(photos), len(photo_ids) - len(photos)
+
+
+def batch_restore(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> Tuple[int, int]:
+    """批量恢复（从回收站恢复）"""
+    photos = (
+        db.query(Photo)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, Photo.is_deleted)
+        .all()
+    )
+    for photo in photos:
+        photo.is_deleted = False
+        photo.deleted_at = None
+    db.commit()
+    return len(photos), len(photo_ids) - len(photos)
+
+
+def batch_permanent_delete(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> Tuple[int, int]:
+    """
+    批量永久删除（数据库记录）
+
+    Returns:
+        (success_count, fail_count)
+    """
+    photos = (
+        db.query(Photo)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, Photo.is_deleted)
+        .all()
+    )
+    for photo in photos:
+        db.delete(photo)
+    db.commit()
+    return len(photos), len(photo_ids) - len(photos)
+
+
+def get_deleted_photo_file_paths(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> List[str]:
+    """获取回收站中照片的文件路径（用于永久删除前清理文件）"""
+    photos = (
+        db.query(Photo.file_path)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, Photo.is_deleted)
+        .all()
+    )
+    return [p.file_path for p in photos if p.file_path]
+
+
 def permanent_delete_photo(db: Session, photo: Photo):
     """物理删除（数据库记录 + 文件由 Service 层处理）"""
     db.delete(photo)

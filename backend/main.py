@@ -28,6 +28,7 @@ from app.api.face import router as face_router
 from app.api.search import router as search_router
 from app.api.agent import router as agent_router
 from app.api.tasks import router as tasks_router
+from app.api.recycle_bin import router as recycle_bin_router
 
 # 训练与管理路由
 from app.api.training import router as training_router
@@ -113,6 +114,7 @@ app.include_router(face_router)
 app.include_router(search_router)
 app.include_router(agent_router)
 app.include_router(tasks_router)
+app.include_router(recycle_bin_router)
 
 # 注册训练与管理路由
 app.include_router(training_router)
