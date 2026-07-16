@@ -15,14 +15,14 @@ export const faceApi = {
 
   /** 命名/重命名聚类 */
   renameCluster(clusterId: string, name: string) {
-    return request.post('/faces/name', { cluster_id: clusterId, name })
+    return request.post('/faces/identities/name', { cluster_id: clusterId, name })
   },
 
   /** 合并两个聚类 */
   mergeClusters(sourceClusterId: string, targetClusterId: string) {
-    return request.post('/faces/merge', {
-      source_cluster_id: sourceClusterId,
-      target_cluster_id: targetClusterId,
+    return request.post('/faces/identities/merge', {
+      source_ids: [sourceClusterId],
+      target_id: targetClusterId,
     })
   },
 }
