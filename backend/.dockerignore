@@ -1,0 +1,19 @@
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+# Version control
+.git
+.gitignore
+
+# Environment
+.env
+.env.*
+
+# IDE
+.idea
+.vscode
+*.swp
