@@ -9,6 +9,7 @@ from app.schemas.photo import (
     PhotoDescriptionResponse, FaceBoxResponse,
     PhotoUpdateRequest, ReanalyzeRequest, BatchPhotoRequest,
     BatchUploadResponse, UploadResult, TimelineGroup, MapPhotoItem,
+    PhotoResponse, PhotoListResponse,
 )
 from app.schemas.task import TaskResponse, TaskStatsResponse
 from app.schemas.response import BaseResponse, PaginatedData

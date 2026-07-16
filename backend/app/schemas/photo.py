@@ -188,3 +188,17 @@ class MapPhotoItem(BaseModel):
         return str(v) if isinstance(v, uuid.UUID) else v
 
     model_config = {"from_attributes": True}
+
+
+# ── 兼容性别名（供旧路由使用）────────────────────
+PhotoResponse = PhotoListItem
+
+
+class PhotoListResponse(BaseModel):
+    """照片列表响应（包含分页信息）"""
+    total: int
+    page: int
+    page_size: int
+    items: list[PhotoListItem]
+
+    model_config = {"from_attributes": True}
