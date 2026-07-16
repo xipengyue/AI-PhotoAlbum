@@ -42,6 +42,8 @@ class Face(Base):
     )
     face_feature = Column(Vector(512), comment="人脸特征向量")
     face_rect = Column(JSON, comment="检测框 [x1, y1, x2, y2]")
+    face_name = Column(String(100), nullable=True, comment="人脸名称")
+    face_aliases = Column(JSON, nullable=True, comment="别名列表")
     confidence = Column(DECIMAL(5, 4), comment="检测置信度")
     created_at = Column(DateTime, default=datetime.now)
 

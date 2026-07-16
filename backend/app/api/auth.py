@@ -1,14 +1,16 @@
 """
 认证 API 路由
-注册 / 登录 / 获取当前用户
+注册 / 登录 / 获取当前用户 / 更新资料 / 修改密码
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.database.session import get_db
-from app.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate, ChangePasswordRequest, TokenResponse
+from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse
 from app.crud.user import create_user, authenticate_user, get_user_by_username, get_user_by_email, update_user
 from app.core.security import create_access_token, hash_password, verify_password
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_required_user
 from app.models.user import User
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
@@ -65,28 +67,44 @@ def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
 
 
+class UpdateProfileRequest(BaseModel):
+    nickname: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 @router.patch("/me", response_model=UserResponse)
 def update_profile(
-    data: UserUpdate,
-    current_user: User = Depends(get_current_user),
+    data: UpdateProfileRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
 ):
-    """更新当前用户个人资料"""
-    update_data = data.model_dump(exclude_unset=True)
-    if update_data:
-        update_user(db, current_user, **update_data)
+    """更新当前用户资料（昵称、头像）"""
+    update_kwargs = {}
+    if data.nickname is not None:
+        update_kwargs["nickname"] = data.nickname
+    if data.avatar_url is not None:
+        update_kwargs["avatar_url"] = data.avatar_url
+    if update_kwargs:
+        current_user = update_user(db, current_user, **update_kwargs)
     return UserResponse.model_validate(current_user)
 
 
 @router.post("/change-password")
 def change_password(
     data: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
 ):
     """修改当前用户密码"""
     if not verify_password(data.old_password, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="当前密码不正确")
+        raise HTTPException(status_code=400, detail="当前密码错误")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="新密码至少 6 位")
     current_user.hashed_password = hash_password(data.new_password)
     db.commit()
     return {"message": "密码已修改"}
