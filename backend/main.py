@@ -73,6 +73,19 @@ async def lifespan(_app: FastAPI):
         logger.error("  2. 或使用 SQLite 测试: DATABASE_URL=sqlite:///./data/app.db uv run uvicorn main:app ...")
         raise
 
+    # 自动迁移：create_all 不会给已有表添加新列，需手动补齐
+    migrations = [
+        "ALTER TABLE faces ADD COLUMN IF NOT EXISTS face_name VARCHAR(100)",
+        "ALTER TABLE faces ADD COLUMN IF NOT EXISTS face_aliases JSON",
+    ]
+    for sql in migrations:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(sql))
+                conn.commit()
+        except Exception:
+            pass
+
     yield
 
     logger.info("服务已关闭")
