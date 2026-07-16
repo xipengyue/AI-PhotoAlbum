@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { photoApi } from '@/api/photo'
+import { clearPhotosCache } from '@/api/search'
 import type { PhotoItem, PhotoDetail } from '@/types/photo'
 
 export const usePhotoStore = defineStore('photo', () => {
@@ -29,6 +30,7 @@ export const usePhotoStore = defineStore('photo', () => {
     try {
       const res = await photoApi.upload(file)
       ElMessage.success('上传成功')
+      clearPhotosCache()
       await fetchPhotos(currentPage.value)
       return res.data
     } catch {
@@ -40,6 +42,7 @@ export const usePhotoStore = defineStore('photo', () => {
     try {
       await photoApi.delete(id)
       ElMessage.success('已移入回收站')
+      clearPhotosCache()
       await fetchPhotos(currentPage.value)
     } catch {
       // handled by interceptor
