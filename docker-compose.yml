@@ -54,6 +54,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    command: ["uv", "run", "uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       TZ: Asia/Shanghai
       DATABASE_URL: postgresql://album:album@postgres:5432/photo_album
@@ -63,6 +64,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
     volumes:
+      - ./backend/app:/app/app
+      - ./backend/main.py:/app/main.py
       - ./data:/app/data
       - ./data/logs:/app/logs
     depends_on:
@@ -77,13 +80,18 @@ services:
 
   # ── 前端应用 ──────────────────────────────────────────
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: node:20-alpine
     container_name: album-frontend
     restart: unless-stopped
+    working_dir: /app
+    environment:
+      VITE_API_PROXY: http://backend:8000
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
     ports:
-      - "3000:80"
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       backend:
         condition: service_healthy
