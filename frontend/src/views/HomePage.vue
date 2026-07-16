@@ -52,7 +52,7 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-gray-500 text-sm">识别人物</p>
-              <p class="text-3xl font-bold text-gray-800 mt-1">{{ stats.faces }}</p>
+              <p class="text-3xl font-bold text-gray-800 mt-1">{{ stats.faces ?? '--' }}</p>
             </div>
             <div class="w-12 h-12 rounded-lg bg-purple-50 flex items-center justify-center">
               <el-icon :size="24" color="#9C27B0"><UserFilled /></el-icon>
@@ -114,6 +114,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { photoApi } from '@/api/photo'
+import { albumApi } from '@/api/album'
 import { mapApi } from '@/api/map'
 import PhotoDetailDrawer from '@/components/photo/PhotoDetailDrawer.vue'
 import type { PhotoItem } from '@/types/photo'
@@ -123,7 +124,7 @@ const loading = ref(true)
 const stats = ref({
   photos: 0,
   albums: 0,
-  faces: 0,
+  faces: null as number | null,
   cities: 0,
 })
 
@@ -154,12 +155,14 @@ function handleDetail(photo: PhotoItem) {
 async function fetchData() {
   loading.value = true
   try {
-    const [statsRes, recentRes, locationsRes] = await Promise.all([
+    const [statsRes, recentRes, locationsRes, albumsRes] = await Promise.all([
       photoApi.list({ page: 1, page_size: 1 }),
       photoApi.list({ page: 1, page_size: 6, sort_by: 'upload_time', order: 'desc' }),
       mapApi.getLocations(),
+      albumApi.list(),
     ])
     stats.value.photos = statsRes.data.total
+    stats.value.albums = Array.isArray(albumsRes.data) ? albumsRes.data.length : 0
     recentPhotos.value = recentRes.data.items
     // 与足迹页相同的去重逻辑：优先用 city，回退 province
     const citySet = new Set<string>()

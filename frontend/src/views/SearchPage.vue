@@ -3,7 +3,7 @@
     <!-- 顶部标题 -->
     <div class="page-header">
       <h1>智能搜索</h1>
-      <p class="text-gray-500">在你的相册中快速查找照片</p>
+      <p class="text-gray-500 dark:text-dark-text-secondary">在你的相册中快速查找照片</p>
     </div>
 
     <!-- 搜索栏 -->
@@ -44,11 +44,11 @@
     <!-- 结果统计和推荐标签 -->
     <div v-if="searchResults.items && searchResults.items.length > 0" class="results-header mt-6">
       <div class="flex justify-between items-start">
-        <p class="text-lg font-medium">
+        <p class="text-lg font-medium dark:text-dark-text">
           找到 <span class="text-blue-600 font-bold">{{ searchResults.total }}</span> 张相关照片
         </p>
         <div v-if="searchResults.suggested_tags.length > 0" class="suggested-tags">
-          <span class="text-sm text-gray-600 mr-2">推荐标签:</span>
+          <span class="text-sm text-gray-600 dark:text-dark-text-secondary mr-2">推荐标签:</span>
           <el-tag
             v-for="tag in searchResults.suggested_tags.slice(0, 5)"
             :key="tag"
@@ -69,7 +69,7 @@
         <el-empty description="开始搜索你的照片">
           <template #default>
             <div v-if="exampleQueries.length > 0" class="mt-4">
-              <span class="text-sm text-gray-600 mr-2">示例搜索:</span>
+              <span class="text-sm text-gray-600 dark:text-dark-text-secondary mr-2">示例搜索:</span>
               <el-tag
                 v-for="example in exampleQueries"
                 :key="example"
@@ -96,7 +96,7 @@
       <div v-else-if="searchResults.items.length === 0" class="empty-state">
         <el-empty description="未找到相关照片">
           <template #default>
-            <p class="text-sm text-gray-500 mb-3">试试换个关键词，或调整筛选条件</p>
+            <p class="text-sm text-gray-500 dark:text-dark-text-secondary mb-3">试试换个关键词，或调整筛选条件</p>
             <el-button type="primary" size="small" @click="resetSearch">重置搜索</el-button>
           </template>
         </el-empty>
@@ -137,10 +137,10 @@
             <p class="photo-name truncate text-sm font-medium">
               {{ photo.original_name || '未命名' }}
             </p>
-            <p v-if="photo.city" class="photo-city text-xs text-gray-500">
+            <p v-if="photo.city" class="photo-city text-xs text-gray-500 dark:text-dark-text-secondary">
               {{ photo.city }}
             </p>
-            <p v-if="photo.photo_time" class="photo-time text-xs text-gray-500">
+            <p v-if="photo.photo_time" class="photo-time text-xs text-gray-500 dark:text-dark-text-secondary">
               {{ formatDate(photo.photo_time) }}
             </p>
             <div v-if="photo.tags.length > 0" class="photo-tags mt-1">
@@ -186,7 +186,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
-import { loadAllPhotos, searchPhotos } from '@/api/search'
+import { loadAllPhotos, searchPhotos, searchApi } from '@/api/search'
 import { photoApi } from '@/api/photo'
 import PhotoDetailDrawer from '@/components/photo/PhotoDetailDrawer.vue'
 import type { PhotoItem } from '@/types/photo'
@@ -251,23 +251,45 @@ async function handleSearch() {
     loading.value = true
     currentPage.value = 1
 
-    const request: SearchRequest = {
-      query: searchQuery.value,
-      mode: searchMode.value,
-      filters: {
-        start_date: filters.dateRange?.[0]
-          ? filters.dateRange[0].toISOString().split('T')[0]
-          : undefined,
-        end_date: filters.dateRange?.[1]
-          ? filters.dateRange[1].toISOString().split('T')[0]
-          : undefined,
-      },
-      page: currentPage.value,
-      page_size: pageSize,
+    if (searchMode.value === 'semantic') {
+      // 语义搜索走后端 API
+      const res = await searchApi.search(searchQuery.value, currentPage.value, pageSize)
+      const data = res.data
+      const items: SearchResultItem[] = (data.results || []).map((hit: any) => ({
+        id: hit.photo_id,
+        thumbnail_url: hit.thumbnail_url || photoApi.thumbnailUrl(hit.photo_id),
+        original_name: hit.original_name,
+        photo_time: undefined,
+        city: undefined,
+        score: hit.score,
+        tags: [],
+      }))
+      Object.assign(searchResults, {
+        items,
+        total: data.total || 0,
+        query: searchQuery.value,
+        mode: 'semantic' as const,
+        suggested_tags: [],
+      })
+    } else {
+      // 关键词/标签模式走前端本地过滤
+      const request: SearchRequest = {
+        query: searchQuery.value,
+        mode: searchMode.value,
+        filters: {
+          start_date: filters.dateRange?.[0]
+            ? filters.dateRange[0].toISOString().split('T')[0]
+            : undefined,
+          end_date: filters.dateRange?.[1]
+            ? filters.dateRange[1].toISOString().split('T')[0]
+            : undefined,
+        },
+        page: currentPage.value,
+        page_size: pageSize,
+      }
+      const result = searchPhotos(request, allPhotos)
+      Object.assign(searchResults, result)
     }
-
-    const result = searchPhotos(request, allPhotos)
-    Object.assign(searchResults, result)
     hasSearched.value = true
   } catch (error) {
     console.error('搜索出错:', error)
@@ -402,7 +424,7 @@ onMounted(async () => {
 }
 
 .search-box {
-  @apply bg-white rounded-lg shadow p-6;
+  @apply bg-white dark:bg-dark-card rounded-lg shadow p-6;
 }
 
 .search-controls {
@@ -418,7 +440,7 @@ onMounted(async () => {
 }
 
 .results-header {
-  @apply bg-white rounded-lg shadow p-4;
+  @apply bg-white dark:bg-dark-card rounded-lg shadow p-4;
 }
 
 .suggested-tags {
@@ -426,7 +448,7 @@ onMounted(async () => {
 }
 
 .results-container {
-  @apply bg-white rounded-lg shadow p-6;
+  @apply bg-white dark:bg-dark-card rounded-lg shadow p-6;
 }
 
 .empty-state {
@@ -441,11 +463,11 @@ onMounted(async () => {
   @apply space-y-2;
 
   .skeleton-image {
-    @apply w-full aspect-square bg-gray-200 rounded animate-pulse;
+    @apply w-full aspect-square bg-gray-200 dark:bg-dark-hover rounded animate-pulse;
   }
 
   .skeleton-text {
-    @apply h-4 bg-gray-200 rounded animate-pulse;
+    @apply h-4 bg-gray-200 dark:bg-dark-hover rounded animate-pulse;
   }
 }
 
@@ -454,10 +476,10 @@ onMounted(async () => {
 }
 
 .photo-card {
-  @apply bg-white rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer;
+  @apply bg-white dark:bg-dark-card rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer;
 
   .photo-container {
-    @apply relative overflow-hidden bg-gray-100 aspect-square;
+    @apply relative overflow-hidden bg-gray-100 dark:bg-dark-hover aspect-square;
 
     .photo-image {
       @apply w-full h-full object-cover hover:scale-105 transition-transform;
@@ -472,12 +494,12 @@ onMounted(async () => {
     @apply p-3 space-y-1;
 
     .photo-name {
-      @apply text-gray-900;
+      @apply text-gray-900 dark:text-dark-text;
     }
 
     .photo-city,
     .photo-time {
-      @apply text-gray-500;
+      @apply text-gray-500 dark:text-dark-text-secondary;
     }
 
     .photo-tags {
@@ -487,6 +509,6 @@ onMounted(async () => {
 }
 
 .pagination {
-  @apply bg-white rounded-lg shadow p-4;
+  @apply bg-white dark:bg-dark-card rounded-lg shadow p-4;
 }
 </style>
