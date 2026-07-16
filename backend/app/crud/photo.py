@@ -86,6 +86,14 @@ def get_photo_by_id(
     return query.first()
 
 
+def get_photo_by_id_any(
+    db: Session,
+    photo_id: uuid.UUID,
+) -> Optional[Photo]:
+    """获取单张照片（含已删除），不做软删除过滤"""
+    return db.query(Photo).filter(Photo.id == photo_id).first()
+
+
 def get_photo_detail(
     db: Session,
     photo_id: uuid.UUID,
@@ -173,6 +181,21 @@ def get_photos_by_ids(
     return query.all()
 
 
+def get_deleted_photos(
+    db: Session,
+    owner_id: str,
+) -> List[Photo]:
+    """获取回收站中的照片列表（已软删除）"""
+    if isinstance(owner_id, str):
+        owner_id = uuid.UUID(owner_id)
+    return (
+        db.query(Photo)
+        .filter(Photo.owner_id == owner_id, Photo.is_deleted == True)
+        .order_by(desc(Photo.deleted_at))
+        .all()
+    )
+
+
 # ── 更新 ──────────────────────────────────────────
 
 def update_photo(
@@ -207,10 +230,101 @@ def restore_photo(db: Session, photo: Photo) -> Photo:
     return photo
 
 
+def batch_soft_delete(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> Tuple[int, int]:
+    """批量软删除（移到回收站）"""
+    now = datetime.now()
+    photos = (
+        db.query(Photo)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, ~Photo.is_deleted)
+        .all()
+    )
+    for photo in photos:
+        photo.is_deleted = True
+        photo.deleted_at = now
+    db.commit()
+    return len(photos), len(photo_ids) - len(photos)
+
+
+def batch_restore(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> Tuple[int, int]:
+    """批量恢复（从回收站恢复）"""
+    photos = (
+        db.query(Photo)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, Photo.is_deleted)
+        .all()
+    )
+    for photo in photos:
+        photo.is_deleted = False
+        photo.deleted_at = None
+    db.commit()
+    return len(photos), len(photo_ids) - len(photos)
+
+
+def batch_permanent_delete(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> Tuple[int, int]:
+    """
+    批量永久删除（数据库记录）
+
+    Returns:
+        (success_count, fail_count)
+    """
+    photos = (
+        db.query(Photo)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, Photo.is_deleted)
+        .all()
+    )
+    for photo in photos:
+        db.delete(photo)
+    db.commit()
+    return len(photos), len(photo_ids) - len(photos)
+
+
+def get_deleted_photo_file_paths(
+    db: Session,
+    photo_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> List[str]:
+    """获取回收站中照片的文件路径（用于永久删除前清理文件）"""
+    photos = (
+        db.query(Photo.file_path)
+        .filter(Photo.id.in_(photo_ids), Photo.owner_id == owner_id, Photo.is_deleted)
+        .all()
+    )
+    return [p.file_path for p in photos if p.file_path]
+
+
 def permanent_delete_photo(db: Session, photo: Photo):
     """物理删除（数据库记录 + 文件由 Service 层处理）"""
     db.delete(photo)
     db.commit()
+
+
+def get_deleted_photos(db: Session, owner_id: str) -> List[Photo]:
+    """获取回收站中的照片列表"""
+    return (
+        db.query(Photo)
+        .filter(
+            Photo.owner_id == uuid.UUID(owner_id),
+            Photo.is_deleted,
+        )
+        .order_by(desc(Photo.deleted_at))
+        .all()
+    )
+
+
+def get_photo_by_id_any(db: Session, photo_id: str) -> Optional[Photo]:
+    """获取任意照片（含已删除，不做权限校验）"""
+    return db.query(Photo).filter(Photo.id == photo_id).first()
 
 
 def update_processed_tasks(

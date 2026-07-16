@@ -120,7 +120,12 @@ def list_photos(
     支持按时间范围、文件类型、相册筛选，以及多种排序方式。
     is_deleted=true 时返回回收站中的照片。
     """
-    album_uuid = uuid.UUID(album_id) if album_id else None
+    album_uuid = None
+    if album_id:
+        try:
+            album_uuid = uuid.UUID(album_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="无效的相册ID")
 
     photos, total = photo_crud.get_photo_list(
         db=db,
@@ -212,7 +217,12 @@ def get_photo_detail(
 
     返回照片全部信息：基础字段 + EXIF 元数据 + AI 描述 + 人脸框列表。
     """
-    photo = photo_crud.get_photo_detail(db, uuid.UUID(photo_id), owner_id=current_user.id)
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+
+    photo = photo_crud.get_photo_detail(db, photo_id_uuid, owner_id=current_user.id)
     if not photo:
         return BaseResponse(code=404, msg="照片不存在", data=None)
 
@@ -277,6 +287,45 @@ def get_photo_detail(
     return BaseResponse(data=detail)
 
 
+@router.get("/{photo_id}/metadata")
+def get_photo_metadata(
+    photo_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """获取照片 EXIF 元数据"""
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+
+    from app.models.photo import PhotoMetadata
+    metadata = db.query(PhotoMetadata).filter(
+        PhotoMetadata.photo_id == photo_id_uuid
+    ).first()
+
+    if not metadata:
+        return {}
+
+    return {
+        "camera_make": metadata.camera_make,
+        "camera_model": metadata.camera_model,
+        "lens_model": metadata.lens_model,
+        "focal_length": metadata.focal_length,
+        "aperture": metadata.aperture,
+        "shutter_speed": metadata.shutter_speed,
+        "iso": metadata.iso,
+        "latitude": metadata.latitude,
+        "longitude": metadata.longitude,
+        "altitude": metadata.altitude,
+        "country": metadata.country,
+        "province": metadata.province,
+        "city": metadata.city,
+        "district": metadata.district,
+        "address": metadata.address,
+    }
+
+
 # ═══════════════════════════════════════════════════
 # 文件服务（缩略图 / 原图）
 # ═══════════════════════════════════════════════════
@@ -294,7 +343,11 @@ def get_photo_file(
     - ?download=false → 浏览器内嵌显示
     - ?download=true  → 触发文件下载
     """
-    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id, include_deleted=True)
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+    photo = photo_crud.get_photo_by_id(db, photo_id_uuid, owner_id=current_user.id, include_deleted=True)
     if not photo:
         raise HTTPException(status_code=404, detail="照片不存在")
 
@@ -357,7 +410,11 @@ def update_photo(
     current_user: User = Depends(get_required_user),
 ):
     """修改照片属性（如修正拍摄时间）"""
-    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id)
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+    photo = photo_crud.get_photo_by_id(db, photo_id_uuid, owner_id=current_user.id)
     if not photo:
         return BaseResponse(code=404, msg="照片不存在", data=None)
 
@@ -384,7 +441,11 @@ def delete_photo(
     - permanent=false → 软删除（移入回收站，可恢复）
     - permanent=true  → 物理删除（删除文件和数据库记录，不可恢复）
     """
-    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id, include_deleted=True)
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+    photo = photo_crud.get_photo_by_id(db, photo_id_uuid, owner_id=current_user.id, include_deleted=True)
     if not photo:
         return BaseResponse(code=404, msg="照片不存在", data=None)
 
@@ -408,7 +469,11 @@ def restore_photo(
     current_user: User = Depends(get_required_user),
 ):
     """从回收站恢复照片"""
-    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id, include_deleted=True)
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+    photo = photo_crud.get_photo_by_id(db, photo_id_uuid, owner_id=current_user.id, include_deleted=True)
     if not photo:
         return BaseResponse(code=404, msg="照片不存在", data=None)
     if not photo.is_deleted:
@@ -422,6 +487,23 @@ def restore_photo(
 # 批量操作
 # ═══════════════════════════════════════════════════
 
+@router.post("/batch/delete", response_model=BaseResponse[dict])
+def batch_delete_photos(
+    req: BatchPhotoRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """
+    批量软删除照片（移入回收站）
+    """
+    try:
+        photo_ids = [uuid.UUID(pid) for pid in req.photo_ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="包含无效的照片ID")
+    success, fail = photo_crud.batch_soft_delete(db, photo_ids, current_user.id)
+    return BaseResponse(data={"success_count": success, "fail_count": fail})
+
+
 @router.post("/batch", response_model=BaseResponse[PaginatedData])
 def batch_get_photos(
     req: BatchPhotoRequest,
@@ -434,7 +516,10 @@ def batch_get_photos(
     与 GET /api/photos 的区别：通过 POST body 传递 photo_id 列表，
     避免 URL 过长导致 414 错误。
     """
-    photo_ids = [uuid.UUID(pid) for pid in req.photo_ids]
+    try:
+        photo_ids = [uuid.UUID(pid) for pid in req.photo_ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="包含无效的照片ID")
     photos = photo_crud.get_photos_by_ids(db, photo_ids, owner_id=current_user.id)
 
     items = [_build_list_item(p) for p in photos]
@@ -466,7 +551,11 @@ def reanalyze_photo(
     from app.models.task import TaskType
     from app.crud.task import create_tasks_batch
 
-    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id)
+    try:
+        photo_id_uuid = uuid.UUID(photo_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的照片ID")
+    photo = photo_crud.get_photo_by_id(db, photo_id_uuid, owner_id=current_user.id)
     if not photo:
         return BaseResponse(code=404, msg="照片不存在", data=None)
 

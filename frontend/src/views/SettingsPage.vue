@@ -82,13 +82,12 @@
     <!-- 个人资料修改 -->
     <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-dark-border p-5 mb-4">
       <h3 class="text-lg font-semibold text-gray-800 dark:text-dark-text mb-3">个人资料</h3>
-      <el-alert type="info" :closable="false" show-icon class="mb-4" title="该功能需后端接口支持，后端就绪后即可生效" />
       <el-form ref="profileFormRef" :model="profileForm" :rules="profileRules" label-width="120px" label-position="left">
         <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="profileForm.nickname" placeholder="请输入昵称" style="max-width: 320px" />
+          <el-input id="profile-nickname" v-model="profileForm.nickname" placeholder="请输入昵称" style="max-width: 320px" />
         </el-form-item>
         <el-form-item label="头像链接" prop="avatar_url">
-          <el-input v-model="profileForm.avatar_url" placeholder="请输入头像图片 URL" style="max-width: 320px" />
+          <el-input id="profile-avatar" v-model="profileForm.avatar_url" placeholder="请输入头像图片 URL" style="max-width: 320px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="profileSaving" @click="saveProfile">保存资料</el-button>
@@ -99,16 +98,15 @@
     <!-- 修改密码 -->
     <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-dark-border p-5">
       <h3 class="text-lg font-semibold text-gray-800 dark:text-dark-text mb-3">修改密码</h3>
-      <el-alert type="info" :closable="false" show-icon class="mb-4" title="该功能需后端接口支持，后端就绪后即可生效" />
       <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="120px" label-position="left">
         <el-form-item label="当前密码" prop="old_password">
-          <el-input v-model="pwdForm.old_password" type="password" show-password placeholder="请输入当前密码" style="max-width: 320px" />
+          <el-input id="pwd-old" v-model="pwdForm.old_password" type="password" show-password placeholder="请输入当前密码" style="max-width: 320px" />
         </el-form-item>
         <el-form-item label="新密码" prop="new_password">
-          <el-input v-model="pwdForm.new_password" type="password" show-password placeholder="请输入新密码" style="max-width: 320px" />
+          <el-input id="pwd-new" v-model="pwdForm.new_password" type="password" show-password placeholder="请输入新密码" style="max-width: 320px" />
         </el-form-item>
         <el-form-item label="确认新密码" prop="confirm_password">
-          <el-input v-model="pwdForm.confirm_password" type="password" show-password placeholder="请再次输入新密码" style="max-width: 320px" />
+          <el-input id="pwd-confirm" v-model="pwdForm.confirm_password" type="password" show-password placeholder="请再次输入新密码" style="max-width: 320px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="pwdSaving" @click="savePassword">修改密码</el-button>
@@ -247,7 +245,7 @@ async function saveProfile() {
     ElMessage.success('资料已更新')
     await userStore.fetchUser()
   } catch {
-    ElMessage.warning('资料修改功能待后端接口支持')
+    ElMessage.error('资料修改失败')
   } finally {
     profileSaving.value = false
   }
@@ -292,7 +290,7 @@ async function savePassword() {
     ElMessage.success('密码已修改')
     pwdFormRef.value.resetFields()
   } catch {
-    ElMessage.warning('修改密码功能待后端接口支持')
+    ElMessage.error('密码修改失败')
   } finally {
     pwdSaving.value = false
   }

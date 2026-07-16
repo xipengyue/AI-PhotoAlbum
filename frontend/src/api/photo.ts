@@ -37,14 +37,29 @@ export const photoApi = {
     return request.delete(`/photos/${id}`)
   },
 
-  /** 恢复 */
+  /** 恢复（从回收站） */
   restore(id: string) {
-    return request.post(`/photos/${id}/restore`)
+    return request.post(`/photos/recycle-bin/${id}/restore`)
   },
 
   /** 永久删除 */
   permanentDelete(id: string) {
-    return request.delete(`/photos/${id}?permanent=true`)
+    return request.delete(`/photos/recycle-bin/${id}/permanent`)
+  },
+
+  /** 批量软删除（移入回收站） */
+  batchDelete(ids: string[]) {
+    return request.post('/photos/batch/delete', { photo_ids: ids })
+  },
+
+  /** 批量恢复（从回收站） */
+  batchRestore(ids: string[]) {
+    return request.post('/photos/recycle-bin/batch/restore', { photo_ids: ids })
+  },
+
+  /** 批量永久删除 */
+  batchPermanentDelete(ids: string[]) {
+    return request.post('/photos/recycle-bin/batch/permanent', { photo_ids: ids })
   },
 
   /** 获取 EXIF 元数据 */

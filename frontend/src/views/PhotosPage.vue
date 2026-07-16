@@ -9,19 +9,36 @@
     <!-- 顶部操作栏 -->
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-2xl font-bold text-gray-800 dark:text-dark-text">照片</h2>
-      <el-button type="primary" :icon="Upload" @click="showUpload = true">
-        上传照片
-      </el-button>
+      <div class="flex items-center gap-2">
+        <!-- 选择模式下的操作按钮 -->
+        <template v-if="isSelectMode">
+          <span class="text-sm text-gray-500 dark:text-dark-text-secondary">已选 {{ selectedIds.size }} 张</span>
+          <el-button :disabled="selectedIds.size === 0" @click="selectAll">全选</el-button>
+          <el-button :disabled="selectedIds.size === 0" @click="selectedIds.clear()">取消</el-button>
+          <el-button type="danger" :disabled="selectedIds.size === 0" :loading="batchDeleting" @click="handleBatchDelete">
+            删除选中
+          </el-button>
+          <el-button @click="exitSelectMode">退出选择</el-button>
+        </template>
+        <!-- 普通模式 -->
+        <template v-else>
+          <el-button :icon="Check" @click="enterSelectMode">批量选择</el-button>
+          <el-button type="primary" :icon="Upload" @click="showUpload = true">上传照片</el-button>
+        </template>
+      </div>
     </div>
 
     <!-- 照片网格 -->
     <PhotoGrid
       :photos="store.photos"
       :loading="store.loading"
+      :selectable="isSelectMode"
+      :selected-ids="selectedIds"
       @upload="showUpload = true"
       @preview="handlePreview"
       @detail="handleDetail"
       @delete="handleDelete"
+      @select="handleSelect"
     />
 
     <!-- 分页 -->
@@ -73,7 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, UploadFilled } from '@element-plus/icons-vue'
+import { Upload, UploadFilled, Check } from '@element-plus/icons-vue'
 import { usePhotoStore } from '@/stores/photo'
 import { photoApi } from '@/api/photo'
 import { extractImagesFromDrop } from '@/utils/dropFiles'
@@ -86,6 +103,77 @@ const store = usePhotoStore()
 
 const showUpload = ref(false)
 const pendingFiles = ref<File[]>([])
+
+// ── 批量选择 ─────────────────────────
+const isSelectMode = ref(false)
+const selectedIds = ref(new Set<string>())
+const batchDeleting = ref(false)
+
+function enterSelectMode() {
+  isSelectMode.value = true
+  selectedIds.value.clear()
+}
+
+function exitSelectMode() {
+  isSelectMode.value = false
+  selectedIds.value.clear()
+}
+
+function selectAll() {
+  store.photos.forEach(p => selectedIds.value.add(p.id))
+  // 触发响应式更新
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+function handleSelect(id: string) {
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id)
+  } else {
+    selectedIds.value.add(id)
+  }
+  // 触发响应式更新
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+async function handleBatchDelete() {
+  const count = selectedIds.value.size
+  if (count === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${count} 张照片吗？删除后可在回收站恢复。`,
+      '批量删除',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  batchDeleting.value = true
+  const ids = [...selectedIds.value]
+
+  try {
+    const res = await photoApi.batchDelete(ids)
+    const { success_count, fail_count } = res.data
+    
+    // 刷新列表
+    await store.fetchPhotos()
+
+    if (success_count > 0 && fail_count === 0) {
+      ElMessage.success(`成功删除 ${success_count} 张照片`)
+    } else if (success_count > 0 && fail_count > 0) {
+      ElMessage.warning(`删除完成：${success_count} 张成功，${fail_count} 张失败`)
+    } else {
+      ElMessage.error('删除失败，请重试')
+    }
+  } catch {
+    ElMessage.error('删除失败，请重试')
+  } finally {
+    batchDeleting.value = false
+  }
+
+  exitSelectMode()
+}
 
 // ── 图片预览 ─────────────────────────
 const previewVisible = ref(false)
@@ -135,6 +223,8 @@ function hasFiles(e: DragEvent): boolean {
 
 function handleDragEnter(e: DragEvent) {
   if (!hasFiles(e)) return
+  // 忽略来自上传对话框内部的拖拽事件
+  if ((e.target as HTMLElement)?.closest?.('.el-dialog')) return
   dragCounter++
   isDragging.value = true
 }
@@ -146,6 +236,7 @@ function handleDragOver(e: DragEvent) {
 
 function handleDragLeave(e: DragEvent) {
   if (!hasFiles(e)) return
+  if ((e.target as HTMLElement)?.closest?.('.el-dialog')) return
   dragCounter--
   if (dragCounter <= 0) {
     dragCounter = 0
@@ -157,6 +248,10 @@ async function handleDrop(e: DragEvent) {
   dragCounter = 0
   isDragging.value = false
   if (!e.dataTransfer) return
+
+  // 忽略来自对话框内部的 drop 事件（避免 el-upload 拖拽区冒泡）
+  const uploadDialog = (e.target as HTMLElement)?.closest?.('.el-dialog')
+  if (uploadDialog) return
 
   const { images, skipped } = await extractImagesFromDrop(e.dataTransfer)
 

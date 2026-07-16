@@ -1,19 +1,28 @@
 ﻿## 📝 最近更新
 
-> **2026-07-15** — 相册管理功能 + UI 动画优化
+> **2026-07-15** — 前后端 API 全面对齐 + 无障碍修复 + 阻塞性 bug 修复
 
-### 📸 相册管理
-- **相册 CRUD API** — 完整的相册创建、读取、更新、删除功能
-- **相册照片管理** — 添加/移除照片，分页查询相册内照片
-- **前端相册页面** — 相册列表、删除确认对话框、创建相册按钮
-- **前端 UI 动画** — 页面过渡动画、卡片悬停效果、导航栏动画
+### 🔗 API 路由对齐
+- **Face API 路由重构** — `/api/faces/identities/*`，身份列表/照片/更新/合并/命名 5 端点
+- **用户资料端点** — `PATCH /auth/me` 更新昵称/头像 + `POST /auth/change-password` 修改密码
+- **照片 EXIF 元数据** — `GET /photos/{id}/metadata` 相机参数/GPS 查询
+- **Face API 前后端参数对齐** — name/merge 路由补充 identities 前缀，merge 参数对齐后端 schema
+
+### 🐛 阻塞性修复
+- **Docker 构建** — Debian trixie `libgl1-mesa-glx` → `libgl1` 适配
+- **Face 模型** — 新增 `face_name` / `face_aliases` 字段 + 启动自动迁移
+- **UUID 安全解析** — photo.py 全部 10 处 UUID 转换加 try/except 400 防护
+
+### ♿ 无障碍
+- **12 个表单元素** — LoginPage/SettingsPage/SearchPage/ChatInput 全部添加 id 属性
+- **Label 关联** — SearchPage 日期选择器 `<label for>` 正确关联
 
 ### 🤖 AI 服务层
 - **YOLO 目标检测** — Ultralytics YOLO11，支持 80 类 COCO 物体识别
 - **人脸增量聚类** — 512 维余弦相似度聚类，自动归并人脸身份
 - **CLIP 文本检索** — jieba 分词 + pgvector 向量相似度搜索
 - **LangGraph 检索代理** — 实体提取 → 人称识别 → CLIP 检索 → 结果合并流水线
-- **对话式 Agent** — 会话管理 + 消息持久化 + 自然语言照片检索
+- **对话式 Agent** — 会话管理 + 消息持久化 + 以图搜图
 
 ### 🔧 架构改进
 - **API 重构** — medias / recycle_bin 路由合并至 photo.py，统一 BaseResponse 响应格式
@@ -88,15 +97,18 @@
 - [x] 地图视图 API（GPS 坐标筛选）
 - [x] AI 分析任务系统（Task 模型 + CRUD + 状态统计）
 - [x] 照片重新分析 API（reanalyze，按类型触发 AI 任务）
-- [ ] 前端照片浏览页（瀑布流 + Lightbox 灯箱）
-- [ ] 前端上传组件（拖拽上传 + 进度条）
+- [x] 前端照片浏览页（网格 + 详情 + Lightbox 灯箱）
+- [x] 前端上传组件（拖拽上传 + 进度条）
 
-### Phase 3 — AI 能力集成 🚧 进行中
+### Phase 3 — AI 能力集成 🚧 进行中（AI 模型部分由其他成员负责）
 
 - [x] 任务基础设施（Task 模型、CRUD、5 种任务类型、上传自动创建）
 - [x] YOLO 目标检测服务（80 类 COCO，画框标注）
 - [x] 人脸增量聚类服务（余弦相似度，FaceIdentity 自动归并）
 - [x] 交互式命名确认服务（pending 会话机制）
+- [x] Face API 全部端点（身份列表/照片/更新/合并/命名绑定）
+- [x] Search API 语义检索（jieba + pgvector cosine 相似度）
+- [x] Agent API 对话（会话 CRUD + 消息持久化 + 以图搜图）
 - [ ] ONNX 模型管理（下载/加载/释放）
 - [ ] InsightFace 人脸检测 + 512 维特征提取
 - [ ] EfficientNet 场景分类（人物/动物/风景/文档/通用 5 类）
@@ -111,10 +123,10 @@
 - [x] 相册照片管理 API（添加/移除照片，分页查询）
 - [x] 前端相册页面（列表视图 + 删除功能）
 - [ ] 智能相册（按时间/地点/标签/人物条件自动聚合）
-- [ ] 人物管理 API（人脸列表/详情/合并/重命名/隐藏）
-- [ ] 照片标签系统（AI 自动标签 + 手动编辑）
-- [ ] 前端相册浏览页（网格 + 详情）
-- [ ] 前端人物浏览页（人物卡片 + 照片列表）
+- [x] 人物管理 API（人脸列表/详情/合并/重命名/隐藏）
+- [x] 照片标签系统（AI 自动标签 + 手动编辑）
+- [x] 前端相册浏览页（网格 + 详情）
+- [x] 前端人物浏览页（人物卡片 + 照片列表）
 
 ### Phase 5 — 搜索与 Agent 🚧 进行中
 
@@ -122,17 +134,17 @@
 - [x] CLIP 文本检索服务（pgvector cosine 相似度查询）
 - [x] LangGraph 混合检索代理（实体识别人称识别 CLIP 检索 结果合并）
 - [x] 对话式检索 Agent（会话 CRUD + 消息持久化）
-- [ ] SSE 流式对话 API
-- [ ] Agent 工具集（search_photos / get_detail / get_faces / get_locations）
-- [ ] 前端 AI 对话页面（聊天气泡 + Markdown 渲染 + 照片卡片）
+- [x] SSE 流式对话 API
+- [x] Agent 工具集（search_photos / get_detail / get_faces / get_locations）
+- [x] 前端 AI 对话页面（聊天气泡 + Markdown 渲染 + 照片卡片）
 
-### Phase 6 — 足迹地图与收尾 🚧 待开发
+### Phase 6 — 足迹地图与收尾 🚧 进行中
 
 - [ ] 反向地理编码（GPS → 省/市/区 + 地址）
 - [ ] 足迹数据查询 API（时间轴/城市统计/景区统计）
-- [ ] 前端足迹地图页面（Leaflet + 照片聚合标记）
-- [ ] 首页 Dashboard（统计卡片 + 最近照片 + 热度图）
-- [ ] 全局搜索页面
+- [x] 前端足迹地图页面（Leaflet + 照片聚合标记）
+- [x] 首页 Dashboard（统计卡片 + 最近照片 + 热度图）
+- [x] 全局搜索页面
 - [ ] Playwright E2E 测试
 - [ ] 部署文档 + Docker 镜像构建
 
@@ -192,9 +204,9 @@ AI-PhotoAlbum/
       │       │   ├── photo.py            # ✅ 照片 CRUD + 上传 + 文件 + 回收站
       │       │   ├── tasks.py            # ✅ 异步任务查询 + 统计
       │       │   ├── album.py            # ✅ 相册管理 CRUD
-      │       │   ├── face.py             # 🚧 人脸管理
-      │       │   ├── search.py           # 🚧 智能搜索
-      │       │   └── agent.py            # 🚧 Agent 对话
+      │       │   ├── face.py             # ✅ 人脸管理（身份列表/照片/更新/合并/命名）
+      │       │   ├── search.py           # ✅ 智能搜索（语义/关键词/标签）
+      │       │   └── agent.py            # ✅ Agent 对话（会话/消息/以图搜图）
 │       │
       │       ├── services/               # 业务服务层
       │       │   ├── photo_service.py    # ✅ 照片上传编排
@@ -232,7 +244,11 @@ AI-PhotoAlbum/
 │       ├── api/
 │       │   ├── auth.ts             # ✅ 认证 API 封装
 │       │   ├── photo.ts            # ✅ 照片/上传/回收站 API 封装
-│       │   └── album.ts            # ✅ 相册管理 API 封装
+│       │   ├── album.ts            # ✅ 相册管理 API 封装
+│       │   ├── face.ts             # ✅ 人脸 API 封装
+│       │   ├── agent.ts            # ✅ Agent 对话 API 封装
+│       │   ├── search.ts           # ✅ 搜索 API 封装
+│       │   └── map.ts              # ✅ 足迹地图 API 封装
 │       │
 │       ├── utils/
 │       │   └── request.ts          # Axios + Token 拦截器
@@ -258,11 +274,11 @@ AI-PhotoAlbum/
 │           ├── PhotosPage.vue      # ✅ 照片浏览 + 上传
 │           ├── RecycleBinPage.vue  # ✅ 回收站（恢复/彻底删除/清空）
 │           ├── AlbumPage.vue       # ✅ 相册管理（列表 + 删除）
-│           ├── FacePage.vue        # 🚧 人物相册
-│           ├── MapPage.vue         # 🚧 足迹地图
-│           ├── SearchPage.vue      # 🚧 智能搜索
-│           ├── AgentChat.vue       # 🚧 AI 助手
-│           ├── SettingsPage.vue    # 🚧 系统设置
+│           ├── FacePage.vue        # ✅ 人物相册
+│           ├── MapPage.vue         # ✅ 足迹地图
+│           ├── SearchPage.vue      # ✅ 智能搜索
+│           ├── AgentChat.vue       # ✅ AI 助手
+│           ├── SettingsPage.vue    # ✅ 系统设置
 │           └── NotFound.vue        # ✅ 404 页面
 │
 ├── data/                           # 运行时数据（挂载卷）
