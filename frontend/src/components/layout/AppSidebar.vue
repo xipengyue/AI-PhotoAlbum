@@ -1,7 +1,7 @@
 <template>
   <aside
-    class="shrink-0 flex flex-col shadow-sm border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card transition-all duration-300"
-    :class="expanded ? 'w-56' : 'w-16'"
+    class="shrink-0 flex flex-col shadow-sm border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card transition-all duration-300 overflow-hidden"
+    :class="expanded ? 'w-56 sidebar-expanded' : 'w-16 sidebar-collapsed'"
   >
     <!-- Logo区域 -->
     <div class="p-3 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
@@ -9,7 +9,7 @@
         <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
           <el-icon :size="18" color="white"><PictureFilled /></el-icon>
         </div>
-        <div v-show="expanded" class="whitespace-nowrap">
+        <div class="whitespace-nowrap overflow-hidden menu-title">
           <h1 class="text-gray-800 dark:text-dark-text font-bold text-base">AI 相册</h1>
           <p class="text-gray-400 dark:text-dark-text-secondary text-xs">智能照片管理</p>
         </div>
@@ -19,9 +19,7 @@
     <!-- 主导航菜单 -->
     <el-menu
       :default-active="activeRoute"
-      :collapse="!expanded"
       router
-      popper-class="sidebar-tooltip"
       :class="['flex-1 border-r-0 sidebar-menu overflow-y-auto', expanded ? 'sidebar-expanded' : 'sidebar-collapsed']"
       background-color="transparent"
       :text-color="isDark ? '#94a3b8' : '#6b7280'"
@@ -29,51 +27,51 @@
     >
       <el-menu-item index="/home" class="sidebar-item">
         <el-icon><HomeFilled /></el-icon>
-        <template #title>首页</template>
+        <template #title><span class="menu-title">首页</span></template>
       </el-menu-item>
       <el-menu-item index="/photos" class="sidebar-item">
         <el-icon><PictureFilled /></el-icon>
-        <template #title>照片</template>
+        <template #title><span class="menu-title">照片</span></template>
       </el-menu-item>
       <el-menu-item index="/recycle-bin" class="sidebar-item">
         <el-icon><Delete /></el-icon>
-        <template #title>回收站</template>
+        <template #title><span class="menu-title">回收站</span></template>
       </el-menu-item>
       <el-menu-item index="/albums" class="sidebar-item">
         <el-icon><Folder /></el-icon>
-        <template #title>相册</template>
+        <template #title><span class="menu-title">相册</span></template>
       </el-menu-item>
       <el-menu-item index="/faces" class="sidebar-item">
         <el-icon><UserFilled /></el-icon>
-        <template #title>人物</template>
+        <template #title><span class="menu-title">人物</span></template>
       </el-menu-item>
       <el-menu-item index="/map" class="sidebar-item">
         <el-icon><Location /></el-icon>
-        <template #title>足迹</template>
+        <template #title><span class="menu-title">足迹</span></template>
       </el-menu-item>
       <el-menu-item index="/search" class="sidebar-item">
         <el-icon><Search /></el-icon>
-        <template #title>搜索</template>
+        <template #title><span class="menu-title">搜索</span></template>
       </el-menu-item>
       <el-menu-item index="/agent" class="sidebar-item">
         <el-icon><ChatDotRound /></el-icon>
-        <template #title>AI 助手</template>
+        <template #title><span class="menu-title">AI 助手</span></template>
       </el-menu-item>
       <el-menu-item index="/training" class="sidebar-item">
         <el-icon><TrendCharts /></el-icon>
-        <template #title>模型训练</template>
+        <template #title><span class="menu-title">模型训练</span></template>
       </el-menu-item>
       <el-menu-item index="/models" class="sidebar-item">
         <el-icon><Monitor /></el-icon>
-        <template #title>模型管理</template>
+        <template #title><span class="menu-title">模型管理</span></template>
       </el-menu-item>
       <el-menu-item index="/database" class="sidebar-item">
         <el-icon><DataBoard /></el-icon>
-        <template #title>数据集管理</template>
+        <template #title><span class="menu-title">数据集管理</span></template>
       </el-menu-item>
       <el-menu-item index="/settings" class="sidebar-item">
         <el-icon><Setting /></el-icon>
-        <template #title>设置</template>
+        <template #title><span class="menu-title">设置</span></template>
       </el-menu-item>
     </el-menu>
 
@@ -86,7 +84,7 @@
         <el-icon :size="18" class="text-gray-500 dark:text-dark-text-secondary">
           <component :is="expanded ? 'Fold' : 'Expand'" />
         </el-icon>
-        <span v-show="expanded" class="ml-2 text-sm text-gray-600 dark:text-dark-text-secondary">收起</span>
+        <span class="ml-2 text-sm text-gray-600 dark:text-dark-text-secondary whitespace-nowrap menu-title">收起</span>
       </div>
     </div>
   </aside>
@@ -100,11 +98,26 @@
 
 .sidebar-menu :deep(.el-menu) {
   border-right: none;
+  min-width: 0 !important;
 }
 
-/* 收起状态下覆盖 Element Plus 默认宽度 */
-:deep(.el-menu--collapse) {
-  width: 100%;
+/* 菜单项过渡（padding 保持默认不变，避免跳变）*/
+.sidebar-menu :deep(.el-menu-item) {
+  transition: background-color 0.3s ease;
+}
+
+/* 菜单文字 — 通过 max-width 控制占位，收起时不占空间 */
+:deep(.menu-title) {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 200px;
+  transition: opacity 0.2s ease, max-width 0.3s ease;
+}
+
+.sidebar-collapsed :deep(.menu-title) {
+  opacity: 0;
+  max-width: 0;
 }
 
 /* 自定义滚动条 - 默认隐藏，悬停时显示 */
