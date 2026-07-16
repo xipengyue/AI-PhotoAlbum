@@ -186,7 +186,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
-import { loadAllPhotos, searchPhotos } from '@/api/search'
+import { loadAllPhotos, searchPhotos, searchApi } from '@/api/search'
 import { photoApi } from '@/api/photo'
 import PhotoDetailDrawer from '@/components/photo/PhotoDetailDrawer.vue'
 import type { PhotoItem } from '@/types/photo'
@@ -251,23 +251,45 @@ async function handleSearch() {
     loading.value = true
     currentPage.value = 1
 
-    const request: SearchRequest = {
-      query: searchQuery.value,
-      mode: searchMode.value,
-      filters: {
-        start_date: filters.dateRange?.[0]
-          ? filters.dateRange[0].toISOString().split('T')[0]
-          : undefined,
-        end_date: filters.dateRange?.[1]
-          ? filters.dateRange[1].toISOString().split('T')[0]
-          : undefined,
-      },
-      page: currentPage.value,
-      page_size: pageSize,
+    if (searchMode.value === 'semantic') {
+      // 语义搜索走后端 API
+      const res = await searchApi.search(searchQuery.value, currentPage.value, pageSize)
+      const data = res.data
+      const items: SearchResultItem[] = (data.results || []).map((hit: any) => ({
+        id: hit.photo_id,
+        thumbnail_url: hit.thumbnail_url || photoApi.thumbnailUrl(hit.photo_id),
+        original_name: hit.original_name,
+        photo_time: undefined,
+        city: undefined,
+        score: hit.score,
+        tags: [],
+      }))
+      Object.assign(searchResults, {
+        items,
+        total: data.total || 0,
+        query: searchQuery.value,
+        mode: 'semantic' as const,
+        suggested_tags: [],
+      })
+    } else {
+      // 关键词/标签模式走前端本地过滤
+      const request: SearchRequest = {
+        query: searchQuery.value,
+        mode: searchMode.value,
+        filters: {
+          start_date: filters.dateRange?.[0]
+            ? filters.dateRange[0].toISOString().split('T')[0]
+            : undefined,
+          end_date: filters.dateRange?.[1]
+            ? filters.dateRange[1].toISOString().split('T')[0]
+            : undefined,
+        },
+        page: currentPage.value,
+        page_size: pageSize,
+      }
+      const result = searchPhotos(request, allPhotos)
+      Object.assign(searchResults, result)
     }
-
-    const result = searchPhotos(request, allPhotos)
-    Object.assign(searchResults, result)
     hasSearched.value = true
   } catch (error) {
     console.error('搜索出错:', error)
