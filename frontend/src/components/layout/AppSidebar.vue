@@ -26,51 +26,75 @@
       active-text-color="#3b82f6"
     >
       <el-menu-item index="/home" class="sidebar-item">
-        <el-icon><HomeFilled /></el-icon>
+        <el-tooltip content="首页" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><HomeFilled /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">首页</span></template>
       </el-menu-item>
       <el-menu-item index="/photos" class="sidebar-item">
-        <el-icon><PictureFilled /></el-icon>
+        <el-tooltip content="照片" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><PictureFilled /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">照片</span></template>
       </el-menu-item>
       <el-menu-item index="/recycle-bin" class="sidebar-item">
-        <el-icon><Delete /></el-icon>
+        <el-tooltip content="回收站" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><Delete /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">回收站</span></template>
       </el-menu-item>
       <el-menu-item index="/albums" class="sidebar-item">
-        <el-icon><Folder /></el-icon>
+        <el-tooltip content="相册" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><Folder /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">相册</span></template>
       </el-menu-item>
       <el-menu-item index="/faces" class="sidebar-item">
-        <el-icon><UserFilled /></el-icon>
+        <el-tooltip content="人物" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><UserFilled /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">人物</span></template>
       </el-menu-item>
       <el-menu-item index="/map" class="sidebar-item">
-        <el-icon><Location /></el-icon>
+        <el-tooltip content="足迹" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><Location /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">足迹</span></template>
       </el-menu-item>
       <el-menu-item index="/search" class="sidebar-item">
-        <el-icon><Search /></el-icon>
+        <el-tooltip content="搜索" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><Search /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">搜索</span></template>
       </el-menu-item>
       <el-menu-item index="/agent" class="sidebar-item">
-        <el-icon><ChatDotRound /></el-icon>
+        <el-tooltip content="AI 助手" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><ChatDotRound /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">AI 助手</span></template>
       </el-menu-item>
       <el-menu-item index="/training" class="sidebar-item">
-        <el-icon><TrendCharts /></el-icon>
+        <el-tooltip content="模型训练" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><TrendCharts /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">模型训练</span></template>
       </el-menu-item>
       <el-menu-item index="/models" class="sidebar-item">
-        <el-icon><Monitor /></el-icon>
+        <el-tooltip content="模型管理" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><Monitor /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">模型管理</span></template>
       </el-menu-item>
       <el-menu-item index="/database" class="sidebar-item">
-        <el-icon><DataBoard /></el-icon>
+        <el-tooltip content="数据集管理" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><DataBoard /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">数据集管理</span></template>
       </el-menu-item>
       <el-menu-item index="/settings" class="sidebar-item">
-        <el-icon><Setting /></el-icon>
+        <el-tooltip content="设置" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><Setting /></el-icon>
+        </el-tooltip>
         <template #title><span class="menu-title">设置</span></template>
       </el-menu-item>
     </el-menu>
@@ -104,6 +128,12 @@
 /* 菜单项过渡（padding 保持默认不变，避免跳变）*/
 .sidebar-menu :deep(.el-menu-item) {
   transition: background-color 0.3s ease;
+}
+
+/* el-tooltip trigger 不影响菜单项布局 */
+.sidebar-menu :deep(.el-tooltip__trigger) {
+  display: inline-flex;
+  align-items: center;
 }
 
 /* 菜单文字 — 通过 max-width 控制占位，收起时不占空间 */
