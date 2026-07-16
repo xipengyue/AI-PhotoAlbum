@@ -172,8 +172,16 @@ async function previewDataset(ds: DatasetItem) {
   catch { ElMessage.error('加载预览失败') }
 }
 async function handleDeleteDataset(ds: DatasetItem) {
-  try { await trainingApi.deleteDataset(ds.id); ElMessage.success('数据集已删除'); await loadDatasets() }
-  catch (e: any) { ElMessage.error(e.response?.data?.detail || '删除失败') }
+  const loadingInstance = ElLoading.service({ lock: true, text: '正在删除数据集...', background: 'rgba(0,0,0,0.7)' })
+  try {
+    await trainingApi.deleteDataset(ds.id)
+    loadingInstance.close()
+    ElMessage.success('数据集已删除')
+    await loadDatasets()
+  } catch (e: any) {
+    loadingInstance.close()
+    ElMessage.error(e.response?.data?.detail || '删除失败')
+  }
 }
 async function handleDeleteTask(t: TrainingTask) {
   try { await trainingApi.deleteTask(t.id); ElMessage.success('训练记录已删除'); await loadTaskList() }
