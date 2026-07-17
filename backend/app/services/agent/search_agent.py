@@ -139,7 +139,7 @@ def clip_search(state: SearchState, config: RunnableConfig) -> SearchState:
             db, image_bytes, top_k=100, owner_id=owner_id, photo_ids=photo_ids
         )
     else:
-        search_text = " ".join(nouns[:5]) if nouns else query
+        search_text = query if len(nouns) <= 2 else " ".join(nouns[:5])  # fallback to full query when nouns too few
         state["clip_results"] = clip_search_by_text(
             db, search_text, top_k=100, owner_id=owner_id, photo_ids=photo_ids
         )
