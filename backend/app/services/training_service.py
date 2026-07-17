@@ -637,16 +637,6 @@ def get_models(db: Session) -> List[Dict[str, Any]]:
             mAP50_95 = m.get("metrics/mAP50-95", m.get("val/mAP50-95", None))
             recall = m.get("metrics/recall", m.get("val/recall", None))
             precision = m.get("metrics/precision", m.get("val/precision", None))
-    dataset_name = None
-    class_count = None
-    if task.dataset_id:
-        ds = db.query(Dataset).filter(Dataset.id == task.dataset_id).first()
-        if ds:
-            dataset_name = ds.name
-            class_count = ds.class_count
-        duration = None
-        if task.started_at and task.completed_at:
-            duration = (task.completed_at - task.started_at).total_seconds()
         dataset_name = None
         class_count = None
         if task.dataset_id:
@@ -654,6 +644,9 @@ def get_models(db: Session) -> List[Dict[str, Any]]:
             if ds:
                 dataset_name = ds.name
                 class_count = ds.class_count
+        duration = None
+        if task.started_at and task.completed_at:
+            duration = (task.completed_at - task.started_at).total_seconds()
         models.append({
             "id": str(task.id),
             "model_name": task.model_name,
