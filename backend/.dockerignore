@@ -1,0 +1,44 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# ??????? docker-compose volume ???????????
+data/
+uploads/
+thumbnails/
+logs/
+models/
+training/
+
+runs/
+
+tests/
+
+# ????
+.git/
+.gitignore
+
+# ????
+.env
+.env.*
+.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ??
+.DS_Store
+Thumbs.db
+
+**/*.md

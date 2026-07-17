@@ -170,7 +170,7 @@ def _vector_search(db: Session, vector_str: str, top_k: int, owner_id, photo_ids
     """通用的 pgvector cosine 相似度检索"""
     sql_str = """
         SELECT iv.photo_id,
-               1 - (iv.embedding <=> :query_vec::vector) AS cosine_similarity
+               1 - (iv.embedding <=> :query_vec\:\:vector) AS cosine_similarity
         FROM image_vectors iv
         WHERE iv.embedding IS NOT NULL
     """
@@ -181,14 +181,13 @@ def _vector_search(db: Session, vector_str: str, top_k: int, owner_id, photo_ids
         sql_str += """
             AND iv.photo_id IN (
                 SELECT p.id FROM photos p
-                WHERE p.owner_id = :owner_id::uuid AND p.is_deleted = false
+                WHERE p.owner_id = :owner_id\:\:uuid AND p.is_deleted = false
             )
         """
         params["owner_id"] = owner_str
 
     if photo_ids and len(photo_ids) > 0:
-        from sqlalchemy import bindparam
-        placeholders = ",".join(f":pid_{i}" for i in range(len(photo_ids)))
+        placeholders = ",".join(f":pid_{i}\:\:uuid" for i in range(len(photo_ids)))
         sql_str += f" AND iv.photo_id IN ({placeholders})"
         for i, pid in enumerate(photo_ids):
             params[f"pid_{i}"] = pid
@@ -200,6 +199,7 @@ def _vector_search(db: Session, vector_str: str, top_k: int, owner_id, photo_ids
         rows = db.execute(text(sql_str), params).fetchall()
     except Exception as e:
         logger.error(f"pgvector 检索失败: {e}")
+        db.rollback()
         return []
 
     return [{"photo_id": str(row[0]), "score": float(row[1])} for row in rows]

@@ -36,7 +36,10 @@ def get_image_embedding(image_source: Union[str, bytes]) -> Optional[List[float]
             raise TypeError(type(image_source))
         inputs = _processor(images=img, return_tensors="pt")
         outputs = _model.get_image_features(**inputs)
-        return outputs[0].detach().numpy().tolist()
+        vec = outputs[0].detach().numpy()
+        if vec.ndim > 1:
+            vec = vec.flatten()
+        return vec.tolist()
     except Exception as e:
         logger.error(f"Image encoding failed: {e}")
         return None
@@ -47,7 +50,10 @@ def get_text_embedding(text: str) -> Optional[List[float]]:
     try:
         inputs = _processor(text=[text], return_tensors="pt", padding=True)
         outputs = _model.get_text_features(**inputs)
-        return outputs[0].detach().numpy().tolist()
+        vec = outputs[0].detach().numpy()
+        if vec.ndim > 1:
+            vec = vec.flatten()
+        return vec.tolist()
     except Exception as e:
         logger.error(f"Text encoding failed: {e}")
         return None
