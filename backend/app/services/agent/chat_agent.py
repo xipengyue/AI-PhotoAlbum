@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models.agent import AgentSession, AgentMessage, SessionStatus
 from app.services.agent.search_agent import run_search_agent
+from app.services.agent.llm_agent import run_llm_agent
 from app.services.name_confirmation_service import create_pending
 
 logger = logging.getLogger(__name__)
@@ -194,75 +195,50 @@ def send_message(
     )
     db.add(user_msg)
 
-    # 2. 执行检索流程
-    agent_result = run_search_agent(
-        query=message,
+    # 2. 获取对话历史
+    recent_msgs = get_messages(db, session_id, limit=20)
+    history = []
+    for m in recent_msgs:
+        content = m["content"]
+        if isinstance(content, dict):
+            content = content.get("text", json.dumps(content, ensure_ascii=False))
+        history.append({"role": m["role"], "content": content})
+
+    # 3. 执行 LLM Agent
+    agent_result = run_llm_agent(
+        user_message=message,
         db=db,
         owner_id=user_id,
         session_id=session_id,
+        history=history,
         image_bytes=image_bytes,
     )
 
-    if agent_result.get("error"):
-        reply = f"抱歉，处理时出了点问题：{agent_result['error']}"
-        assistant_msg = AgentMessage(
-            session_id=sid,
-            role="assistant",
-            content=json.dumps({"text": reply, "results": [], "total": 0}, ensure_ascii=False),
-            tool_calls=agent_result,
-        )
-        db.add(assistant_msg)
-        db.commit()
-        return {
-            "reply": reply,
-            "results": [],
-            "total": 0,
-            "needs_confirmation": False,
-            "pending_candidates": [],
-            "message_id": assistant_msg.id,
-        }
+    reply = agent_result["reply"]
+    results = agent_result["results"]
+    total = agent_result["total"]
+    tool_calls_log = agent_result.get("tool_calls", [])
 
-    # 3. 名称确认处理
-    needs_confirmation = agent_result.get("needs_confirmation", False)
-    candidates = agent_result.get("pending_candidates", [])
-
-    if needs_confirmation and candidates:
-        create_pending(
-            session_id=session_id,
-            query=message,
-            candidates=candidates,
-        )
-
-    # 4. 格式化回复
-    reply = _build_text_reply(agent_result)
-    merged = agent_result.get("merged_results", [])
-
+    # 4. 保存 assistant 回复
     assistant_payload = {
         "text": reply,
-        "results": merged[:20],
-        "total": len(merged),
+        "results": results[:20],
+        "total": total,
     }
 
-    # 5. 保存 assistant 回复
     assistant_msg = AgentMessage(
         session_id=sid,
         role="assistant",
         content=json.dumps(assistant_payload, ensure_ascii=False),
-        tool_calls={
-            "nouns": agent_result.get("nouns", []),
-            "person_names": agent_result.get("person_names", []),
-            "needs_confirmation": needs_confirmation,
-            "total_results": len(merged),
-        },
+        tool_calls=tool_calls_log,
     )
     db.add(assistant_msg)
 
-    # 6. 更新 session
+    # 5. 更新 session
     sess = db.query(AgentSession).filter(AgentSession.id == sid).first()
     if sess:
         sess.message_count = (sess.message_count or 0) + 2
         sess.updated_at = datetime.now()
-        # 首次消息时用第一条消息做标题
         if sess.message_count <= 2 and len(message) <= 50:
             sess.title = message
         elif sess.message_count <= 2:
@@ -272,10 +248,10 @@ def send_message(
 
     return {
         "reply": reply,
-        "results": merged[:20],
-        "total": len(merged),
-        "needs_confirmation": needs_confirmation,
-        "pending_candidates": candidates,
+        "results": results[:20],
+        "total": total,
+        "needs_confirmation": False,
+        "pending_candidates": [],
         "message_id": assistant_msg.id,
     }
 

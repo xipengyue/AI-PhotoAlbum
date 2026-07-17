@@ -35,8 +35,8 @@ COCO_CLASSES = [
 _model = None
 _model_name: Optional[str] = None
 
-# 默认模型名称（可用 yolo26n.pt / yolo26s.pt / yolo26m.pt 等）
-DEFAULT_MODEL = "yolo26n.pt"
+# 默认模型名称
+DEFAULT_MODEL = "yolo11n.pt"
 
 
 def _get_model(model_name: str = DEFAULT_MODEL):
