@@ -73,6 +73,12 @@
         </el-tooltip>
         <template #title><span class="menu-title">AI 助手</span></template>
       </el-menu-item>
+      <el-menu-item index="/tasks" class="sidebar-item">
+        <el-tooltip content="任务中心" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
+          <el-icon><List /></el-icon>
+        </el-tooltip>
+        <template #title><span class="menu-title">任务中心</span></template>
+      </el-menu-item>
       <el-menu-item index="/training" class="sidebar-item">
         <el-tooltip content="模型训练" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
           <el-icon><TrendCharts /></el-icon>
