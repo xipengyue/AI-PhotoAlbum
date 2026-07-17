@@ -50,9 +50,9 @@
     <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-dark-border p-5 mb-4">
       <h3 class="text-lg font-semibold text-gray-800 dark:text-dark-text mb-4">偏好设置</h3>
       <el-form label-width="120px" label-position="left">
-        <el-form-item label="主题模式">
+        <el-form-item label="主题模式" for="theme-mode-group">
           <div class="flex items-center gap-3">
-            <el-radio-group v-model="currentTheme" @change="onThemeChange">
+            <el-radio-group id="theme-mode-group" v-model="currentTheme" @change="onThemeChange">
               <el-radio-button value="light">
                 <el-icon class="mr-1"><Sunny /></el-icon> 浅色
               </el-radio-button>
