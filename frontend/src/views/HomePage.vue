@@ -72,25 +72,37 @@
         </div>
       </div>
 
-      <!-- 最近上传 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">最近上传</h3>
-        <el-empty v-if="recentPhotos.length === 0" description="还没有照片，快去上传吧！" />
-        <div v-else class="grid grid-cols-6 gap-3">
-          <div
-            v-for="(photo, index) in recentPhotos"
-            :key="photo.id"
-            class="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer"
-            @click="handlePreview(photo, index)"
-          >
-            <img :src="photoApi.thumbnailUrl(photo.id)" class="w-full h-full object-cover group-hover:opacity-80 transition-opacity" />
-            <button
-              class="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-500"
-              @click.stop="handleDetail(photo)"
-              title="详情"
+      <!-- 拍摄热度 + 最近上传：左右分列 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 拍摄热度日历图 -->
+        <div v-if="heatmapData.length > 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">拍摄热度</h3>
+          <v-chart :option="heatmapOption" autoresize class="w-full" style="height: 200px" />
+        </div>
+
+        <!-- 最近上传 -->
+        <div
+          class="bg-white rounded-xl shadow-sm border border-gray-100 p-5"
+          :class="{ 'lg:col-span-2': heatmapData.length === 0 }"
+        >
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">最近上传</h3>
+          <el-empty v-if="recentPhotos.length === 0" description="还没有照片，快去上传吧！" />
+          <div v-else class="grid grid-cols-3 gap-3">
+            <div
+              v-for="(photo, index) in recentPhotos"
+              :key="photo.id"
+              class="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer"
+              @click="handlePreview(photo, index)"
             >
-              <el-icon :size="14"><InfoFilled /></el-icon>
-            </button>
+              <img :src="photoApi.thumbnailUrl(photo.id)" class="w-full h-full object-cover group-hover:opacity-80 transition-opacity" />
+              <button
+                class="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-500"
+                @click.stop="handleDetail(photo)"
+                title="详情"
+              >
+                <el-icon :size="14"><InfoFilled /></el-icon>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -114,11 +126,19 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { InfoFilled } from '@element-plus/icons-vue'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { HeatmapChart } from 'echarts/charts'
+import { CalendarComponent, VisualMapComponent, TooltipComponent } from 'echarts/components'
 import { photoApi } from '@/api/photo'
 import { albumApi } from '@/api/album'
 import { mapApi } from '@/api/map'
 import PhotoDetailDrawer from '@/components/photo/PhotoDetailDrawer.vue'
 import type { PhotoItem } from '@/types/photo'
+
+// 注册 ECharts 组件
+use([CanvasRenderer, HeatmapChart, CalendarComponent, VisualMapComponent, TooltipComponent])
 
 const router = useRouter()
 
@@ -132,6 +152,81 @@ const stats = ref({
 })
 
 const recentPhotos = ref<PhotoItem[]>([])
+
+// ── 拍摄热度日历图 ─────────────
+const heatmapData = ref<[string, number][]>([])
+const heatmapYear = ref<string>(String(new Date().getFullYear()))
+
+const heatmapMax = computed(() =>
+  heatmapData.value.reduce((max, [, count]) => Math.max(max, count), 0)
+)
+
+const heatmapOption = computed(() => ({
+  tooltip: {
+    formatter: (p: { value: [string, number] }) => `${p.value[0]}：${p.value[1]} 张`,
+  },
+  visualMap: {
+    min: 0,
+    max: heatmapMax.value || 1,
+    orient: 'horizontal',
+    left: 'center',
+    bottom: 0,
+    inRange: { color: ['#e0f2fe', '#409EFF', '#1e40af'] },
+  },
+  calendar: {
+    top: 30,
+    left: 40,
+    right: 20,
+    cellSize: ['auto', 16],
+    range: heatmapYear.value,
+    itemStyle: { borderWidth: 2, borderColor: '#fff' },
+    yearLabel: { show: false },
+    dayLabel: { nameMap: 'cn' },
+    monthLabel: { nameMap: 'cn' },
+    splitLine: { show: false },
+  },
+  series: [
+    {
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      data: heatmapData.value,
+    },
+  ],
+}))
+
+/** 分页拉取用于热度图的照片（后端 page_size 上限 200，此处分页并限制上限避免过多请求） */
+async function fetchHeatmapPhotos(): Promise<PhotoItem[]> {
+  const pageSize = 200
+  const first = await photoApi.list({ page: 1, page_size: pageSize, sort_by: 'photo_time', order: 'desc' })
+  const items: PhotoItem[] = [...first.data.items]
+  const totalPages = Math.min(Math.ceil((first.data.total || 0) / pageSize), 10) // 最多 2000 张
+  const rest = []
+  for (let p = 2; p <= totalPages; p++) {
+    rest.push(photoApi.list({ page: p, page_size: pageSize, sort_by: 'photo_time', order: 'desc' }))
+  }
+  const resList = await Promise.all(rest)
+  for (const r of resList) items.push(...r.data.items)
+  return items
+}
+
+/** 按日期聚合照片数量（优先拍摄时间，回退上传时间） */
+function buildHeatmap(photos: PhotoItem[]) {
+  const counter = new Map<string, number>()
+  for (const p of photos) {
+    const raw = p.photo_time || p.upload_time
+    if (!raw) continue
+    const date = raw.slice(0, 10) // YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    counter.set(date, (counter.get(date) || 0) + 1)
+  }
+  const entries: [string, number][] = [...counter.entries()]
+  heatmapData.value = entries
+  // 日历年份取数据最新一年，没有数据时回退当前年
+  if (entries.length > 0) {
+    const years = entries.map(([d]) => d.slice(0, 4)).sort()
+    heatmapYear.value = years[years.length - 1]
+  }
+}
 
 // ── 图片预览 ─────────────────────────
 const previewVisible = ref(false)
@@ -158,15 +253,17 @@ function handleDetail(photo: PhotoItem) {
 async function fetchData() {
   loading.value = true
   try {
-    const [statsRes, recentRes, locationsRes, albumsRes] = await Promise.all([
+    const [statsRes, recentRes, locationsRes, albumsRes, heatmapPhotos] = await Promise.all([
       photoApi.list({ page: 1, page_size: 1 }),
       photoApi.list({ page: 1, page_size: 6, sort_by: 'upload_time', order: 'desc' }),
       mapApi.getLocations(),
       albumApi.list(),
+      fetchHeatmapPhotos(),
     ])
     stats.value.photos = statsRes.data.total
     stats.value.albums = Array.isArray(albumsRes.data) ? albumsRes.data.length : 0
     recentPhotos.value = recentRes.data.items
+    buildHeatmap(heatmapPhotos || [])
     // 与足迹页相同的去重逻辑：优先用 city，回退 province
     const citySet = new Set<string>()
     for (const loc of locationsRes.data || []) {
