@@ -39,7 +39,7 @@ export const photoApi = {
 
   /** 恢复（从回收站） */
   restore(id: string) {
-    return request.post(`/photos/recycle-bin/${id}/restore`)
+    return request.post(`/photos/${id}/restore`)
   },
 
   /** 永久删除 */

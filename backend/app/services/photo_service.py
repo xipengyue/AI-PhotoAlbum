@@ -247,13 +247,12 @@ async def upload_single_photo(
 
     # 7. 创建异步分析任务
     task_types = [
-        TaskType.exif_extract,       # EXIF 提取（如果有的话二次提取）
+        TaskType.exif_extract,       # EXIF 提取
+        TaskType.object_detection,   # YOLO 目标检测 → 自动标签
         TaskType.face_detect,        # 人脸检测
         TaskType.image_description,  # AI 描述
         TaskType.image_embedding,    # CLIP 向量
         TaskType.quality_assessment, # 质量评分
-        # TODO: Phase 2 后续实现缩略图生成
-        # TaskType.thumbnail_generate,
     ]
     tasks = create_tasks_batch(db, owner_id=owner_id, photo_id=photo.id, task_types=task_types)
 

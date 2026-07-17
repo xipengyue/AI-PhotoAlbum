@@ -42,6 +42,7 @@ class TaskType(str, enum.Enum):
     thumbnail_generate = "thumbnail_generate" # 缩略图生成
     exif_extract = "exif_extract"            # EXIF 元数据提取
     dedup_check = "dedup_check"              # 重复照片检测
+    object_detection = "object_detection"    # YOLO 目标检测 → 自动标签
 
 
 class Task(Base):

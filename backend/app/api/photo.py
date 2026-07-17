@@ -697,3 +697,35 @@ def _build_basic_response(photo: Photo) -> PhotoDetailResponse:
         is_deleted=photo.is_deleted,
         processed_tasks=photo.processed_tasks,
     )
+
+
+# ═══════════════════════════════════════════════════
+# 目标检测 → 自动标签
+# ═══════════════════════════════════════════════════
+
+@router.post("/{photo_id}/detect", response_model=BaseResponse[dict])
+def detect_objects_on_photo(
+    photo_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """对单张照片运行 YOLO 目标检测，自动生成标签"""
+    photo = photo_crud.get_photo_by_id(db, uuid.UUID(photo_id), owner_id=current_user.id)
+    if not photo:
+        return BaseResponse(code=404, msg="照片不存在", data=None)
+
+    from app.services.tag_service import generate_tags_for_photo
+    desc = generate_tags_for_photo(db, photo)
+    labels = desc.tags if desc else []
+    return BaseResponse(data={"photo_id": photo_id, "labels": labels, "count": len(labels)})
+
+
+@router.post("/batch/detect", response_model=BaseResponse[dict])
+def batch_detect_objects(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_required_user),
+):
+    """为当前用户所有无标签照片批量运行目标检测"""
+    from app.services.tag_service import batch_generate_tags
+    result = batch_generate_tags(db, current_user.id, limit=100)
+    return BaseResponse(data=result)

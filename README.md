@@ -1,5 +1,16 @@
 ﻿## 📝 最近更新
 
+> **2026-07-17** — AI Agent 全面升级 + 自动标签系统
+
+### 🤖 AI Agent 智能化
+- **LLM 驱动对话** — 接入 OpenAI 兼容大模型，自然语言理解用户意图
+- **Agent 工具集** — 5 个内置工具：搜索照片、创建相册、添加到相册、列出相册、照片统计
+- **自动工具调用** — Agent 自主决定调用哪些工具完成用户任务
+
+### 🏷️ 自动标签
+- **YOLO 目标检测** — 上传照片自动运行 YOLO11 检测，提取 80 类 COCO 物体标签
+- **标签搜索** — AI 助手可基于标签搜索照片："帮我找有猫的照片"
+
 > **2026-07-15** — 前后端 API 全面对齐 + 无障碍修复 + 阻塞性 bug 修复
 
 ### 🔗 API 路由对齐
@@ -325,43 +336,67 @@ AI-PhotoAlbum/
 - Python 3.11+
 - Node.js 18+
 - Docker & Docker Compose
+- **OpenAI 兼容 API Key**（DeepSeek / SiliconFlow / OpenAI 等）
+
+### ⚠️ 启动前必须配置 API Key
+
+```bash
+# 1. 复制环境变量模板
+cp backend/.env.example backend/.env
+
+# 2. 编辑 backend/.env，填入你的 API Key
+# 支持 OpenAI / DeepSeek / SiliconFlow 等兼容接口
+OPENAI_API_KEY=your-api-key-here      # ← 改成你的真实 Key
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
+
+# 3. 如果用 Docker Compose，同步到根目录
+cp backend/.env .env
+```
+
+> 获取 Key：[OpenAI](https://platform.openai.com) | [DeepSeek](https://platform.deepseek.com) | [SiliconFlow](https://cloud.siliconflow.cn)
 
 ### 端口一览
 
 | 端口 | 服务 | 说明 |
 |:---:|------|------|
-| `8000` | 后端 FastAPI | `docker compose up -d backend` 或 `uvicorn main:app --port 8000` |
-| `5173` | 前端 Vite 开发服务器 | `docker compose up -d frontend` 或 `npm run dev` |
+| `8000` | 后端 FastAPI | 开发模式直接运行，生产用 Docker |
+| `5173` | 前端 Vite 开发服务器 | `npm run dev` |
 | `5433` | PostgreSQL | 避免与本地 PG 冲突 |
-| `9000` | MinIO S3 API | 对象存储 |
+| `9000` | MinIO S3 API | 对象存储（可选） |
 | `9001` | MinIO 控制台 | Web 管理界面 |
 
-### 方式一：Docker Compose 一键部署
+### 方式一：开发模式（推荐日常使用）
+
+```bash
+# 1. 只启动数据库
+docker compose up -d
+
+# 2. 启动后端（热重载，改代码即时生效）
+cd backend
+uv sync                              # 仅首次
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# 3. 另开终端，启动前端（热重载）
+cd frontend
+npm install                          # 仅首次
+npm run dev
+```
+
+访问 `http://localhost:5173`
+
+### 方式二：Docker Compose 全栈部署
 
 ```bash
 cd AI-PhotoAlbum
-docker compose up -d
+docker compose --profile production up -d --build
 ```
-
-> 所有服务均支持**源码热同步**：修改后端代码自动重启 uvicorn，修改前端代码自动 Vite HMR。
 
 | 服务 | 地址 |
 |------|------|
-| 前端 | `http://localhost:5173` |
+| 前端 | `http://localhost:3000` |
 | API 文档 | `http://localhost:8000/docs` |
-| MinIO | `http://localhost:9001` |
 
-### 方式二：开发模式（本地运行前端）
-
-```bash
-# 启动数据库 + 后端（Docker，热重载）
-docker compose up -d postgres backend
-
-# 前端（新终端，Vite HMR）
-cd frontend
-npm install                 # 仅首次
-npm run dev
-```
 ### 验证
 
 ```bash
@@ -370,19 +405,11 @@ curl http://localhost:8000/api/health
 # → {"status":"ok","message":"AI-PhotoAlbum service is running"}
 
 # 注册用户
-# Windows PowerShell:
-curl.exe -X POST http://localhost:8000/api/auth/register -H "Content-Type: application/json" -d '{\"username\":\"demo\",\"email\":\"demo@test.com\",\"password\":\"123456\"}'
-
-# Linux / macOS:
 curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"demo","email":"demo@test.com","password":"123456"}'
 
 # 登录获取 Token
-# Windows PowerShell:
-curl.exe -X POST http://localhost:8000/api/auth/login -H "Content-Type: application/json" -d '{\"username\":\"demo\",\"password\":\"123456\"}'
-
-# Linux / macOS:
 curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"demo","password":"123456"}'
