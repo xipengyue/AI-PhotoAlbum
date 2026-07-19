@@ -163,7 +163,7 @@ def _enrich_photo_names(result: dict, db: Session) -> dict:
         if len(names) >= 10:
             break
         try:
-            photo = photo_crud.get_photo(db, UUID(pid))
+            photo = photo_crud.get_photo_by_id(db, UUID(pid))
             if photo:
                 name = photo.original_name or photo.filename or pid[:8]
                 names.append(name)
