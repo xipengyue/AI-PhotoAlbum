@@ -28,40 +28,6 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
-      <el-tab-pane label="训练记录" name="records">
-        <div class="flex items-center mb-4">
-          <span class="text-sm text-gray-500 dark:text-dark-text-secondary">共 {{ taskList.length }} 条记录</span>
-          <el-select v-model="filterStatus" placeholder="状态筛选" clearable style="width: 140px; margin-left: 12px" @change="loadTaskList">
-            <el-option label="全部" value="" />
-            <el-option label="进行中" value="running" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="失败" value="failed" />
-            <el-option label="已暂停" value="paused" />
-          </el-select>
-        </div>
-        <el-table :data="taskList" stripe v-loading="loading.tasks" style="width: 100%">
-          <el-table-column prop="task_name" label="任务名称" min-width="160" />
-          <el-table-column prop="model_name" label="模型名称" min-width="140" />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="进度" width="100" align="center">
-            <template #default="{ row }">{{ row.current_epoch }}/{{ row.total_epochs }}</template>
-          </el-table-column>
-          <el-table-column prop="best_metric" label="mAP50" width="100" align="center">
-            <template #default="{ row }">{{ row.best_metric !== null ? row.best_metric.toFixed(4) : '-' }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
-            <template #default="{ row }">
-              <el-popconfirm title="确定删除此训练记录？" @confirm="handleDeleteTask(row)">
-                <template #reference><el-button link type="danger" size="small">删除</el-button></template>
-              </el-popconfirm>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
       <el-tab-pane label="磁盘空间" name="storage">
       <div v-if="loading.storage" class="flex flex-col items-center justify-center py-16 text-gray-400">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
@@ -122,13 +88,11 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage, ElLoading } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
-import trainingApi, { type DatasetItem, type TrainingTask, type StorageInfo, type DatasetPreview } from '@/api/training'
+import trainingApi, { type DatasetItem, type StorageInfo, type DatasetPreview } from '@/api/training'
 
 const activeTab = ref('datasets')
 const previewDialog = ref<{ visible: boolean; data: DatasetPreview | null }>({ visible: false, data: null })
 const datasetList = ref<DatasetItem[]>([])
-const taskList = ref<TrainingTask[]>([])
-const filterStatus = ref('')
 const storageInfo = ref<StorageInfo>({
   models_size: 0, datasets_size: 0, logs_size: 0, total_size: 0,
   models_size_display: '0 B', datasets_size_display: '0 B',
@@ -136,7 +100,7 @@ const storageInfo = ref<StorageInfo>({
 })
 const cleaning = ref(false)
 const cleanResult = ref<{cleaned_count: number; cleaned_size: number; cleaned_size_display: string} | null>(null)
-const loading = reactive({ datasets: false, tasks: false, storage: false })
+const loading = reactive({ datasets: false, storage: false })
 
 function formatSize(bytes: number) {
   if (!bytes) return '0 B'
@@ -144,25 +108,11 @@ function formatSize(bytes: number) {
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / 1048576).toFixed(2) + ' MB'
 }
-function statusType(status: string) {
-  const m: Record<string, string> = { pending: 'info', running: 'warning', paused: '', completed: 'success', failed: 'danger' }
-  return m[status] || 'info'
-}
-function statusLabel(status: string) {
-  const m: Record<string, string> = { pending: '待开始', running: '进行中', paused: '已暂停', completed: '已完成', failed: '失败' }
-  return m[status] || status
-}
 async function loadDatasets() {
   loading.datasets = true
   try { const r = await trainingApi.listDatasets(); datasetList.value = r.data.items }
   catch { ElMessage.error('加载数据集列表失败') }
   finally { loading.datasets = false }
-}
-async function loadTaskList() {
-  loading.tasks = true
-  try { const r = await trainingApi.listTasks(filterStatus.value || undefined); taskList.value = r.data.items }
-  catch { ElMessage.error('加载训练记录失败') }
-  finally { loading.tasks = false }
 }
 async function loadStorageInfo() {
   loading.storage = true
@@ -211,15 +161,11 @@ async function handleDeleteDataset(ds: DatasetItem) {
     ElMessage.error(e.response?.data?.detail || '删除失败')
   }
 }
-async function handleDeleteTask(t: TrainingTask) {
-  try { await trainingApi.deleteTask(t.id); ElMessage.success('训练记录已删除'); await loadTaskList() }
-  catch (e: any) { ElMessage.error(e.response?.data?.detail || '删除失败') }
-}
 async function handleCleanStorage() {
   cleaning.value = true
   try { const r = await trainingApi.cleanStorage(); cleanResult.value = r.data; ElMessage.success('清理完成'); await loadStorageInfo() }
   catch (e: any) { ElMessage.error(e.response?.data?.detail || '清理失败') }
   finally { cleaning.value = false }
 }
-onMounted(async () => { await Promise.all([loadDatasets(), loadTaskList(), loadStorageInfo()]) })
+onMounted(async () => { await Promise.all([loadDatasets(), loadStorageInfo()]) })
 </script>

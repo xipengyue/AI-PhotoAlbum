@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="h-full flex flex-col space-y-4">
     <!-- 页面标题与操作栏 -->
     <div class="flex items-center justify-between">
@@ -126,9 +126,6 @@
             </el-table-column>
             <el-table-column label="进度" width="90" align="center">
               <template #default="{ row }">{{ epochDisplay(row.current_epoch, row.total_epochs, row.status) }}</template>
-            </el-table-column>
-            <el-table-column prop="best_metric" label="mAP50" width="90" align="center">
-              <template #default="{ row }">{{ row.best_metric?.toFixed(4) || '-' }}</template>
             </el-table-column>
           </el-table>
         </div>
@@ -570,10 +567,13 @@ async function loadMetrics(taskId: string) {
     metricsData.value = res.data.metrics || []
     logLines.value = res.data.logs || []
 
-    // 更新 taskList 中的状态
+    // 更新 taskList 和 selectedTask 中的状态
     const idx = taskList.value.findIndex(t => t.id === taskId)
     if (idx >= 0) {
       taskList.value[idx] = res.data.task
+    }
+    if (selectedTask.value && selectedTask.value.id === taskId) {
+      selectedTask.value = res.data.task
     }
   } catch {
     // 忽略
