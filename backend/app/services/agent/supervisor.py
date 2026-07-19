@@ -38,9 +38,6 @@ from app.services.search_service import (
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Supervisor routing prompt
-# ---------------------------------------------------------------------------
 
 SUPERVISOR_PROMPT = """You are a supervisor agent that routes user requests to specialist agents.
 
@@ -77,10 +74,6 @@ Routing rules:
 - Use Chinese in your replies. Be warm and helpful.
 - When the tool result includes photo_display_names, reference them in your reply so the user knows which photos were found."""
 
-
-# ---------------------------------------------------------------------------
-# Specialised tools for Supervisor
-# ---------------------------------------------------------------------------
 
 @tool
 def detection_agent(
@@ -133,10 +126,6 @@ SUPERVISOR_TOOLS = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Photo name enrichment (so LLM can reference photos by name, not by UUID)
-# ---------------------------------------------------------------------------
-
 def _enrich_photo_names(result: dict, db: Session) -> dict:
     """Add human-readable photo names to tool results for better LLM replies.
 
@@ -175,10 +164,6 @@ def _enrich_photo_names(result: dict, db: Session) -> dict:
     result["photo_display_names"] = names
     return result
 
-
-# ---------------------------------------------------------------------------
-# Supervisor tool executor
-# ---------------------------------------------------------------------------
 
 def _execute_supervisor_tool(
     tool_name: str,
@@ -247,10 +232,6 @@ def _execute_supervisor_tool(
         return json.dumps({"error": str(e)})
 
 
-# ---------------------------------------------------------------------------
-# Supervisor main loop
-# ---------------------------------------------------------------------------
-
 def run_supervisor(
     user_message: str,
     db: Session,
@@ -309,12 +290,15 @@ def run_supervisor(
             )
             result_data = json.loads(result_json)
 
+            # Collect results from both "photos" and "photo_ids" keys
             if "photos" in result_data:
                 for p in result_data["photos"]:
                     pid = p.get("photo_id") or p.get("id")
                     if pid:
                         all_photos.append({"photo_id": pid, "score": p.get("score", 0)})
             if "photo_ids" in result_data:
+                for pid in result_data["photo_ids"]:
+                    all_photos.append({"photo_id": pid, "score": 0.0})
                 shared_photo_ids.extend(result_data["photo_ids"])
 
             tool_results_for_frontend.append({
