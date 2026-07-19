@@ -13,7 +13,7 @@ from pydantic import BaseModel, field_validator
 def coerce_uuid(v: Any) -> Optional[str]:
     """将 UUID 对象转为字符串"""
     if v is None:
-        return None
+        return ""
     return str(v) if isinstance(v, uuid.UUID) else v
 
 

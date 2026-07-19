@@ -639,16 +639,6 @@ def get_task_metrics(task_id: str, db: Session) -> List[Dict[str, Any]]:
     task = db.query(TrainingTask).filter(TrainingTask.id == uuid.UUID(task_id)).first()
     if task and task.log_path:
         candidates = [Path(task.log_path).parent / "results.csv"]
-        if TRAINING_DIR.exists():
-            for sub in TRAINING_DIR.iterdir():
-                if sub.is_dir():
-                    candidates.append(sub / "results.csv")
-        # 也检查 YOLO 默认的 runs/train/ 目录
-        runs_dir = Path("./runs/train")
-        if runs_dir.exists():
-            for sub in runs_dir.iterdir():
-                if sub.is_dir():
-                    candidates.append(sub / "results.csv")
         results_path = None
         for c in candidates:
             if c.exists():
@@ -676,7 +666,7 @@ def get_task_metrics(task_id: str, db: Session) -> List[Dict[str, Any]]:
                             if k.endswith('(B)'):
                                 metrics_dict[k.replace('(B)', '').strip()] = metrics_dict[k]
                         result.append({
-                            "id": None,
+                            "id": "",
                             "task_id": task_id,
                             "epoch": epoch_int,
                             "metrics": metrics_dict,
