@@ -11,7 +11,7 @@ def setup_logger(name: str = "app") -> logging.Logger:
     """初始化并返回日志记录器"""
     from app.config.settings import settings
 
-    log_dir = Path("./data/logs")
+    log_dir = Path(settings.LOGS_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger(name)

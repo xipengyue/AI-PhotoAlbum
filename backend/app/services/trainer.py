@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional, Callable, Dict, Any
 from datetime import datetime
 import contextlib
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +185,7 @@ def run_training(
 
         # 将裸文件名解析到 data/models 目录，避免 YOLO 下载到当前工作目录
         if "/" not in pretrained and "\\" not in pretrained and not pretrained.startswith("http"):
-            _pt_dir = Path("./data/models").resolve()
+            _pt_dir = Path(settings.MODELS_DIR).resolve()
             _pt_dir.mkdir(parents=True, exist_ok=True)
             pretrained = str(_pt_dir / pretrained)
         

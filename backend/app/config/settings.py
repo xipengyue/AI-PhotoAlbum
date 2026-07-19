@@ -2,6 +2,7 @@
 全局配置模块
 使用 pydantic-settings 从环境变量和 .env 文件加载配置
 """
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field
@@ -10,46 +11,48 @@ from pydantic import Field
 class Settings(BaseSettings):
     """应用全局配置"""
 
-    # ── 应用信息 ──────────────────────────────────────
+    # -- 应用信息 ----------------------------------------
     APP_NAME: str = "AI-PhotoAlbum"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
-    # ── 数据库 ────────────────────────────────────────
+    # -- 数据库 ------------------------------------------
     DATABASE_URL: str = "postgresql://album:album@localhost:5433/photo_album"
 
-    # ── JWT 认证 ──────────────────────────────────────
+    # -- JWT 认证 ----------------------------------------
     JWT_SECRET_KEY: str = "change-me-to-a-random-secret-key"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440  # 24 小时
 
-    # ── 大模型 API ────────────────────────────────────
+    # -- 大模型 API --------------------------------------
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4o"
 
-    # ── MinIO 对象存储 ────────────────────────────────
+    # -- MinIO 对象存储 ----------------------------------
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "photo-album"
     MINIO_SECURE: bool = False
 
-    # ── 文件存储 ───────────────────────────────────────
+    # -- 文件存储 ----------------------------------------
     UPLOAD_DIR: str = "./data/uploads"
     THUMBNAIL_DIR: str = "./data/thumbnails"
     AVATAR_DIR: str = "./data/avatars"
     MAX_UPLOAD_SIZE_MB: int = 50
 
-    # ── 图片压缩（保留 EXIF，仅限制最长边 + 重编码） ────────
-    MAX_IMAGE_LONG_EDGE: int = 2560  # 原图最长边上限（像素），超过则等比缩放
-    IMAGE_QUALITY: int = 85          # JPEG/WebP 重编码质量
+    # -- 图片压缩 ----------------------------------------
+    MAX_IMAGE_LONG_EDGE: int = 2560
+    IMAGE_QUALITY: int = 85
 
-    # ── AI 模型路径 ────────────────────────────────────
+    # -- AI 模型路径 -------------------------------------
     MODELS_DIR: str = "./data/models"
+    # -- 日志目录 ----------------------------------------
+    LOGS_DIR: str = "./data/logs"
 
-    # ── CORS ──────────────────────────────────────────
+    # -- CORS --------------------------------------------
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
     @property
@@ -65,3 +68,22 @@ class Settings(BaseSettings):
 
 # 全局配置单例
 settings = Settings()
+
+# 将相对路径转换为相对于项目根目录的绝对路径
+# 先尝试 4 层 parent（本地开发），再试 3 层 parent（Docker 挂载）
+_FILE = Path(__file__).resolve()
+for _n in (4, 3):
+    _PROJECT_ROOT = _FILE.parents[_n - 1]
+    if (_PROJECT_ROOT / "data" / "models").is_dir():
+        break
+else:
+    _PROJECT_ROOT = _FILE.parents[2]  # fallback
+
+_RELATIVE_PATH_FIELDS = ["UPLOAD_DIR", "THUMBNAIL_DIR", "AVATAR_DIR", "MODELS_DIR", "LOGS_DIR"]
+for _field in _RELATIVE_PATH_FIELDS:
+    _val: str = getattr(settings, _field)
+    if _val.startswith("./"):
+        _abs = (_PROJECT_ROOT / _val[2:]).resolve()
+        object.__setattr__(settings, _field, str(_abs))
+
+# 启动时打印解析后的路径，用于验证

@@ -15,6 +15,7 @@ import tarfile
 import zipfile
 import logging
 import threading
+import subprocess
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
@@ -950,6 +951,9 @@ def reset_default_model() -> bool:
 
 # ══════════════════════════════════════════════════════════════════
 #  Storage Management
+
+_storage_cache: Dict[str, Any] = {"data": None, "timestamp": 0.0}
+_STORAGE_CACHE_TTL = 60  # cache TTL 60s
 # ══════════════════════════════════════════════════════════════════
 
 def _format_size(size_bytes: int) -> str:
@@ -962,15 +966,42 @@ def _format_size(size_bytes: int) -> str:
 
 
 def get_storage_info() -> Dict[str, Any]:
-    """获取磁盘空间信息"""
-    models_size = sum(f.stat().st_size for f in MODELS_DIR.rglob("*") if f.is_file()
-                      ) if MODELS_DIR.exists() else 0
-    datasets_size = sum(f.stat().st_size for f in DATASETS_DIR.rglob("*") if f.is_file()
-                        ) if DATASETS_DIR.exists() else 0
-    logs_size = sum(f.stat().st_size for f in Path("./data/logs").rglob("*") if f.is_file()
-                    ) if Path("./data/logs").exists() else 0
+    """获取磁盘空间信息（带缓存）"""
+    now = time.time()
+    if _storage_cache["data"] and (now - _storage_cache["timestamp"]) < _STORAGE_CACHE_TTL:
+        return _storage_cache["data"]
+
+    def _calc_size(directory: Path) -> int:
+        """用 du -sb 快速计算目录大小"""
+        if not directory.exists():
+            return 0
+        try:
+            result = subprocess.run(
+                ["du", "-sb", str(directory)],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return int(result.stdout.split()[0])
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+        # fallback: 逐文件 stat
+        total = 0
+        try:
+            for f in directory.rglob("*"):
+                if f.is_file():
+                    try:
+                        total += f.stat().st_size
+                    except (OSError, PermissionError):
+                        continue
+        except (OSError, PermissionError):
+            pass
+        return total
+
+    models_size = _calc_size(MODELS_DIR)
+    datasets_size = _calc_size(DATASETS_DIR)
+    logs_size = _calc_size(Path(settings.LOGS_DIR))
     total = models_size + datasets_size + logs_size
-    return {
+    result = {
         "models_size": models_size,
         "datasets_size": datasets_size,
         "logs_size": logs_size,
@@ -980,8 +1011,9 @@ def get_storage_info() -> Dict[str, Any]:
         "logs_size_display": _format_size(logs_size),
         "total_size_display": _format_size(total),
     }
-
-
+    _storage_cache["data"] = result
+    _storage_cache["timestamp"] = time.time()
+    return result
 def clean_failed_temp_files() -> Dict[str, Any]:
     """清理失败的训练任务产生的临时文件"""
     cleaned_count = 0
@@ -989,9 +1021,22 @@ def clean_failed_temp_files() -> Dict[str, Any]:
     from app.database.session import SessionLocal
     db = SessionLocal()
     try:
+        # 收集需要保护的目录（非失败状态的任务），避免误删运行中的任务
+        active_tasks = db.query(TrainingTask).filter(
+            TrainingTask.status != "failed"
+        ).all()
+        protected_dirs: set[str] = set()
+        for task in active_tasks:
+            if task.log_path:
+                protected_dirs.add(str(Path(task.log_path).parent.resolve()))
+
         if TRAINING_DIR.exists():
             for task_dir in TRAINING_DIR.iterdir():
                 if task_dir.is_dir():
+                    resolved = str(task_dir.resolve())
+                    # 跳过需要保护的目录
+                    if resolved in protected_dirs:
+                        continue
                     dir_size = sum(f.stat().st_size for f in task_dir.rglob("*") if f.is_file())
                     shutil.rmtree(str(task_dir), ignore_errors=True)
                     cleaned_count += 1
@@ -999,13 +1044,13 @@ def clean_failed_temp_files() -> Dict[str, Any]:
                     logger.info(f"已清理临时文件: {task_dir}")
     finally:
         db.close()
+    # 清理后清除缓存
+    _storage_cache["data"] = None
     return {
         "cleaned_count": cleaned_count,
         "cleaned_size": cleaned_size,
         "cleaned_size_display": _format_size(cleaned_size),
     }
-
-
 __all__ = [
     "upload_dataset", "create_dataset_yaml", "get_dataset_preview", "delete_dataset",
     "create_task", "create_task_with_dataset", "start_training", "pause_training", "resume_training", "stop_training",
