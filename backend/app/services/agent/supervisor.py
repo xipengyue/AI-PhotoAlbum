@@ -17,6 +17,7 @@ specialist agent, then aggregates the results into a natural-language reply.
 import json
 import logging
 from typing import Dict, List, Optional, Any
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
@@ -73,7 +74,8 @@ Routing rules:
 - If the user mentions both objects AND a person, call both search_photos (with objects) and face_agent, then intersect.
 - If the user mentions time/location AND objects, call metadata_agent first, then search_photos with those photo_ids.
 - If the user just chats or asks a simple question, reply directly without calling any tool.
-- Use Chinese in your replies. Be warm and helpful."""
+- Use Chinese in your replies. Be warm and helpful.
+- When the tool result includes photo_display_names, reference them in your reply so the user knows which photos were found."""
 
 
 # ---------------------------------------------------------------------------
@@ -124,15 +126,54 @@ def metadata_agent(
     pass
 
 
-# All Supervisor tools (specialists + basic tools from LLM agent)
-# The basic tools are imported from llm_agent for reuse
-
 SUPERVISOR_TOOLS = [
     detection_agent,
     face_agent,
     metadata_agent,
 ]
-# We also register the basic tools from llm_agent at runtime
+
+
+# ---------------------------------------------------------------------------
+# Photo name enrichment (so LLM can reference photos by name, not by UUID)
+# ---------------------------------------------------------------------------
+
+def _enrich_photo_names(result: dict, db: Session) -> dict:
+    """Add human-readable photo names to tool results for better LLM replies.
+
+    Mutates the result dict in-place to add a photo_display_names list.
+    """
+    from app.crud import photo as photo_crud
+
+    photo_ids: List[str] = []
+
+    if "photo_ids" in result and isinstance(result["photo_ids"], list):
+        photo_ids = result["photo_ids"]
+    elif "photos" in result and isinstance(result["photos"], list):
+        photo_ids = [
+            p.get("photo_id") or p.get("id")
+            for p in result["photos"]
+            if p.get("photo_id") or p.get("id")
+        ]
+
+    if not photo_ids:
+        return result
+
+    names = []
+    for pid in photo_ids:
+        if len(names) >= 10:
+            break
+        try:
+            photo = photo_crud.get_photo(db, UUID(pid))
+            if photo:
+                name = photo.original_name or photo.filename or pid[:8]
+                names.append(name)
+            else:
+                names.append(pid[:8])
+        except Exception:
+            names.append(pid[:8])
+
+    result["photo_display_names"] = names
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +198,6 @@ def _execute_supervisor_tool(
                 return json.dumps({"found": 0, "photos": [], "error": "no target_objects"}, ensure_ascii=False)
 
             if not photo_ids:
-                # Need to do a broad search first
                 keyword = " ".join(target_objects)
                 clip_results = clip_search_by_text(db, keyword, top_k=100, owner_id=owner_id)
                 photo_ids = [r["photo_id"] for r in clip_results]
@@ -168,6 +208,7 @@ def _execute_supervisor_tool(
                 db=db,
                 image_bytes=image_bytes,
             )
+            _enrich_photo_names(result, db)
             return json.dumps(result, ensure_ascii=False)
 
         elif tool_name == "face_agent":
@@ -179,6 +220,7 @@ def _execute_supervisor_tool(
                 db=db,
                 owner_id=owner_id,
             )
+            _enrich_photo_names(result, db)
             return json.dumps(result, ensure_ascii=False)
 
         elif tool_name == "metadata_agent":
@@ -192,10 +234,10 @@ def _execute_supervisor_tool(
                 db=db,
                 owner_id=owner_id,
             )
+            _enrich_photo_names(result, db)
             return json.dumps(result, ensure_ascii=False)
 
         else:
-            # Fall back to LLM agent''s tool executor for basic tools
             return llm_execute_tool(
                 tool_name, tool_args, db, owner_id, image_bytes=image_bytes
             )
@@ -224,7 +266,6 @@ def run_supervisor(
     """
     llm = get_llm()
 
-    # Merge supervisor tools with basic tools from llm_agent
     from app.services.agent.llm_agent import TOOLS as BASIC_TOOLS
     all_tools = BASIC_TOOLS + SUPERVISOR_TOOLS
     llm_with_tools = llm.bind_tools(all_tools)
@@ -268,7 +309,6 @@ def run_supervisor(
             )
             result_data = json.loads(result_json)
 
-            # Collect photo IDs from different tools
             if "photos" in result_data:
                 for p in result_data["photos"]:
                     pid = p.get("photo_id") or p.get("id")
@@ -291,7 +331,6 @@ def run_supervisor(
 
     reply = response.content if hasattr(response, 'content') else str(response)
 
-    # Deduplicate photos
     seen = set()
     unique_photos = []
     for p in all_photos:
