@@ -217,11 +217,24 @@ def run_training(
             _epoch_counter[0] = getattr(trainer, "epoch", _epoch_counter[0] + 1)
             epoch = _epoch_counter[0]
 
+            # 提取指标
+            metrics = {}
+            try:
+                if hasattr(trainer, "metrics") and trainer.metrics:
+                    for k, v in trainer.metrics.items():
+                        try:
+                            val = float(v)
+                            metrics[k] = round(val, 6)
+                        except (TypeError, ValueError):
+                            pass
+            except Exception:
+                pass
+
             # 更新数据库中的 current_epoch
             try:
-                callback.on_epoch_end(task_id, epoch, {})
+                callback.on_epoch_end(task_id, epoch, metrics)
             except Exception as cb_err:
-                logger.error(f"[训练器] 进度回调失败: {cb_err}")
+                logger.error(f"[训练器] 指标回调失败: {cb_err}")
 
             # 检查停止信号（立即退出）
             if signals["stop"].is_set():

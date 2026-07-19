@@ -64,22 +64,7 @@ class _MetricCallback(TrainingCallback):
         return self.db_session_factory()
 
     def on_epoch_end(self, task_id: str, epoch: int, metrics: dict):
-        """每个 epoch 结束时更新当前轮次"""
-        db = self._get_db()
-        try:
-            task = db.query(TrainingTask).filter(TrainingTask.id == uuid.UUID(task_id)).first()
-            if task:
-                task.current_epoch = epoch
-                task.updated_at = datetime.now()
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error(f"保存epoch {epoch} 进度失败: {e}")
-        finally:
-            db.close()
-
-    def on_val_end(self, task_id: str, epoch: int, metrics: dict):
-        """验证结束后保存完整指标（包含 mAP50 等）"""
+        """保存当前 epoch 的指标到数据库"""
         db = self._get_db()
         try:
             metric_record = TrainingMetric(
@@ -91,15 +76,34 @@ class _MetricCallback(TrainingCallback):
 
             task = db.query(TrainingTask).filter(TrainingTask.id == uuid.UUID(task_id)).first()
             if task:
+                task.current_epoch = epoch
+                task.updated_at = datetime.now()
+
                 best = metrics.get("metrics/mAP50", metrics.get("val/mAP50", None))
                 if best is not None and (task.best_metric is None or best > task.best_metric):
                     task.best_metric = round(float(best), 6)
-                task.updated_at = datetime.now()
 
             db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"保存验证指标（epoch {epoch}）失败: {e}")
+            logger.error(f"保存 epoch {epoch} 指标失败: {e}")
+        finally:
+            db.close()
+
+    def on_val_end(self, task_id: str, epoch: int, metrics: dict):
+        """验证结束后更新最佳指标（不创建 TrainingMetric，由 on_epoch_end 负责）"""
+        db = self._get_db()
+        try:
+            task = db.query(TrainingTask).filter(TrainingTask.id == uuid.UUID(task_id)).first()
+            if task:
+                best = metrics.get("metrics/mAP50", metrics.get("val/mAP50", None))
+                if best is not None and (task.best_metric is None or best > task.best_metric):
+                    task.best_metric = round(float(best), 6)
+                task.updated_at = datetime.now()
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"更新最佳指标（epoch {epoch}）失败: {e}")
         finally:
             db.close()
 
