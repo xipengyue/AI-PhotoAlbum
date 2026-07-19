@@ -490,7 +490,7 @@ const chartOption = computed(() => {
     legend: {
       type: 'scroll',
       top: 0,
-      textStyle: { fontSize: 11 },
+      textStyle: { fontSize: 11, color: isDark.value ? '#ffffff' : '#333' },
     },
     grid: { left: 50, right: 20, top: 40, bottom: 45 },
     xAxis: {
@@ -499,10 +499,17 @@ const chartOption = computed(() => {
       name: 'Epoch',
       nameLocation: 'end',
       nameGap: 5,
+      axisLabel: { color: isDark.value ? '#ffffff' : '#333' },
+      nameTextStyle: { color: isDark.value ? '#ffffff' : '#333' },
+      axisLine: { lineStyle: { color: isDark.value ? 'rgba(255,255,255,0.3)' : '#333' } },
     },
     yAxis: {
       type: 'value',
       name: 'Value',
+      axisLabel: { color: isDark.value ? '#ffffff' : '#333' },
+      nameTextStyle: { color: isDark.value ? '#ffffff' : '#333' },
+      axisLine: { lineStyle: { color: isDark.value ? 'rgba(255,255,255,0.3)' : '#333' } },
+      splitLine: { lineStyle: { color: isDark.value ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)' } },
     },
     dataZoom: [
       { type: 'inside', start: 0, end: 100 },
@@ -790,7 +797,12 @@ function stopPolling() {
 // ── 生命周期 ─────────────────────────────────────────────────────
 
 onMounted(async () => {
+  const observer = new MutationObserver(() => {
+    isDark.value = document.documentElement.classList.contains('dark')
+  })
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   await refreshTaskList()
+  onUnmounted(() => observer.disconnect())
 })
 
 onUnmounted(() => {

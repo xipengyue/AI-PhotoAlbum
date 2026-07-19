@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="h-full flex flex-col space-y-4">
     <div class="flex items-center justify-between">
       <div class="flex items-center space-x-3">
@@ -89,7 +89,7 @@
   <!-- 模型详情弹窗 -->
   <el-dialog v-model="detailVisible" title="模型详情" width="800px" top="5vh">
     <div v-if="detailData" class="space-y-4">
-      <h4 class="font-semibold text-gray-800 text-lg">{{ detailData.model?.model_name }}</h4>
+      <h4 class="font-semibold text-gray-800 dark:text-dark-text text-lg">{{ detailData.model?.model_name }}</h4>
       <el-divider class="my-2" />
       <div class="grid grid-cols-2 gap-4 text-sm">
         <div class="space-y-2">
@@ -109,7 +109,7 @@
       <!-- 指标图表 -->
       <div v-if="!detailData.model?.config?.imported">
       <div v-if="detailMetrics.length > 0" class="border-t pt-4">
-        <h4 class="text-sm font-semibold text-gray-700 mb-2">训练指标</h4>
+        <h4 class="text-sm font-semibold text-gray-700 dark:text-dark-text mb-2">训练指标</h4>
         <v-chart :option="detailChartOption" autoresize class="w-full" style="height: 280px" />
       </div>
       <div v-else class="border-t pt-4 text-center text-gray-400 dark:text-dark-text-secondary">
@@ -141,7 +141,7 @@
   </el-dialog>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -161,6 +161,7 @@ const importLoading = ref(false)
 const detailVisible = ref(false)
 const detailData = ref<{model: ModelInfo; metrics: MetricItem[]; task_detail?: {current_epoch?: number; total_epochs?: number; status?: string; description?: string}} | null>(null)
 const detailMetrics = ref<MetricItem[]>([])
+const isDark = ref(document.documentElement.classList.contains('dark'))
 const sortField = ref('status')
 
 const sortedModelList = computed(() => {
@@ -208,10 +209,22 @@ const detailChartOption = computed(() => {
   }))
   return {
     tooltip: { trigger: 'axis' },
-    legend: { type: 'scroll', textStyle: { fontSize: 11 } },
+    legend: { type: 'scroll', textStyle: { fontSize: 11, color: isDark.value ? '#ffffff' : '#333' } },
     grid: { left: 50, right: 20, top: 40, bottom: 30 },
-    xAxis: { type: 'category', data: epochs, name: 'Epoch' },
-    yAxis: { type: 'value' },
+    xAxis: {
+      type: 'category',
+      data: epochs,
+      name: 'Epoch',
+      axisLabel: { color: isDark.value ? '#ffffff' : '#333' },
+      nameTextStyle: { color: isDark.value ? '#ffffff' : '#333' },
+      axisLine: { lineStyle: { color: isDark.value ? 'rgba(255,255,255,0.3)' : '#333' } },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: isDark.value ? '#ffffff' : '#333' },
+      nameTextStyle: { color: isDark.value ? '#ffffff' : '#333' },
+      axisLine: { lineStyle: { color: isDark.value ? 'rgba(255,255,255,0.3)' : '#333' } },
+    },
     series,
   }
 })
@@ -321,7 +334,14 @@ async function showDetail(model: ModelInfo) {
     ElMessage.error('加载模型详情失败')
   }
 }
-onMounted(() => { loadModels() })
+onMounted(() => {
+  const observer = new MutationObserver(() => {
+    isDark.value = document.documentElement.classList.contains('dark')
+  })
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  loadModels()
+  onUnmounted(() => observer.disconnect())
+})
 function statusTagType(status: string) {
   const m: Record<string, string> = { pending: 'info', running: 'warning', paused: '', completed: 'success', failed: 'danger' }
   return m[status] || 'info'
@@ -331,3 +351,5 @@ function statusTagLabel(status: string) {
   return m[status] || status
 }
 </script>
+
+
