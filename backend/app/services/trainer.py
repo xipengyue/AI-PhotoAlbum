@@ -216,8 +216,8 @@ def run_training(
         def _on_epoch_end(trainer):
             """每个 epoch 结束时的回调"""
             nonlocal _epoch_counter
-            _epoch_counter[0] = getattr(trainer, "epoch", _epoch_counter[0] + 1)
-            epoch = _epoch_counter[0]
+            _epoch_counter[0] = getattr(trainer, "epoch", _epoch_counter[0])
+            epoch = _epoch_counter[0] + 1
 
             # 提取指标
             metrics = {}
@@ -306,7 +306,7 @@ def run_training(
         def _on_val_end(trainer):
             """每个 epoch 验证结束后提取指标并保存"""
             nonlocal _epoch_counter
-            epoch = getattr(trainer, "epoch", _epoch_counter[0])
+            epoch = getattr(trainer, "epoch", _epoch_counter[0]) + 1
             metrics = {}
             try:
                 if hasattr(trainer, "metrics") and trainer.metrics:
