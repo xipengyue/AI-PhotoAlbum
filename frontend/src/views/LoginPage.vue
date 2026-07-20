@@ -216,8 +216,6 @@ function removeCredential(username: string) {
 }
 
 const credentialMap = loadCredentialMap()
-const hasSavedCred = Object.keys(credentialMap).length > 0
-
 // ── 验证码 ───────────────────────────
 const captchaId = ref('')
 const captchaImage = ref('')
@@ -244,10 +242,9 @@ const loginForm = reactive({
   captcha_code: '',
 })
 
-// 如果有保存的凭据，默认勾选记住密码
-if (hasSavedCred) {
-  rememberPassword.value = true
-}
+// ── 切换账号刷新验证码 ───────────────
+// 记录上次尝试登录的用户名，用于检测账号切换
+const lastLoginAttemptUsername = ref('')
 
 // ── 同意协议 ─────────────────────────
 const TERMS_KEY = 'term_agreements'
@@ -313,11 +310,29 @@ function onUsernameInput() {
 
   // 匹配已同意协议的用户：自动勾选
   agreedToTerms.value = input ? !!termAgreementMap[input] : false
+
+  // 匹配已保存密码的账号：自动勾选记住密码
+  rememberPassword.value = input ? !!credentialMap[input] : false
+
+  // 用户切换到了另一账号（之前尝试过登录），刷新验证码
+  if (lastLoginAttemptUsername.value && input && input !== lastLoginAttemptUsername.value) {
+    loginForm.captcha_code = ''
+    refreshCaptcha()
+    lastLoginAttemptUsername.value = ''
+  }
+  // 用户名被清空时，清空验证码输入
+  if (!input && lastLoginAttemptUsername.value) {
+    loginForm.captcha_code = ''
+  }
 }
 
 function selectKnownUser(user: { username: string }) {
   loginForm.username = user.username
   onUsernameInput()
+  lastLoginAttemptUsername.value = ''
+  // 切换账号时刷新验证码并清空已输入的验证码
+  loginForm.captcha_code = ''
+  refreshCaptcha()
 }
 
 function switchToLogin() {
@@ -351,6 +366,8 @@ function switchToRegister() {
 
 // ── 登录 ─────────────────────────────
 async function handleLogin() {
+  // 记录本次登录尝试的用户名，用于切换账号时自动刷新验证码
+  lastLoginAttemptUsername.value = loginForm.username.trim()
   loading.value = true
   try {
     const res = await authApi.login({
