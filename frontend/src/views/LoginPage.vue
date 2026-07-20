@@ -74,15 +74,22 @@
             </div>
           </el-form-item>
 
-          <!-- 记住密码 -->
+          <!-- 记住密码 + 同意协议 -->
           <el-form-item>
-            <div class="flex items-center justify-between w-full">
+            <div class="flex items-center justify-between w-full gap-4">
               <el-checkbox v-model="rememberPassword" size="small">记住密码</el-checkbox>
+              <el-checkbox v-model="agreedToTerms" size="small">
+                <span class="text-xs text-gray-400 dark:text-dark-text-secondary">
+                  已阅读并同意
+                  <router-link to="/terms" target="_blank" class="text-blue-500 hover:text-blue-600">《服务协议》</router-link>
+                  <router-link to="/terms" target="_blank" class="text-blue-500 hover:text-blue-600">《隐私声明》</router-link>
+                </span>
+              </el-checkbox>
             </div>
           </el-form-item>
 
           <el-form-item>
-            <el-button type="primary" size="large" class="w-full" :loading="loading" @click="handleLogin">
+            <el-button type="primary" size="large" class="w-full" :loading="loading" :disabled="!agreedToTerms" @click="handleLogin">
               登 录
             </el-button>
           </el-form-item>
@@ -99,8 +106,21 @@
           <el-form-item prop="password">
             <el-input v-model="registerForm.password" type="password" placeholder="密码（至少6位）" :prefix-icon="Lock" show-password size="large" />
           </el-form-item>
+
+          <!-- 同意协议 -->
           <el-form-item>
-            <el-button type="primary" size="large" class="w-full" :loading="loading" @click="handleRegister">
+            <el-checkbox v-model="agreedToTerms" size="small">
+              <span class="text-xs text-gray-400 dark:text-dark-text-secondary">
+                我已阅读并同意
+                <router-link to="/terms" target="_blank" class="text-blue-500 hover:text-blue-600">《服务协议》</router-link>
+                和
+                <router-link to="/terms" target="_blank" class="text-blue-500 hover:text-blue-600">《隐私声明》</router-link>
+              </span>
+            </el-checkbox>
+          </el-form-item>
+
+          <el-form-item>
+            <el-button type="primary" size="large" class="w-full" :loading="loading" :disabled="!agreedToTerms" @click="handleRegister">
               注 册
             </el-button>
           </el-form-item>
@@ -123,6 +143,7 @@ const userStore = useUserStore()
 
 const isLogin = ref(true)
 const loading = ref(false)
+const agreedToTerms = ref(false)
 
 // ── 记住密码 ─────────────────────────
 const REMEMBER_KEY = 'remembered_credentials'
