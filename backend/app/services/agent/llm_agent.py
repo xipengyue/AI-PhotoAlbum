@@ -60,7 +60,6 @@ When a user mentions specific objects (animals, vehicles, furniture, etc.):
 # --- LLM singleton ----------------------------------------------------------
 
 _llm: Optional[ChatOpenAI] = None
-_vision_llm: Optional[ChatOpenAI] = None
 
 
 def get_llm() -> ChatOpenAI:
@@ -73,23 +72,6 @@ def get_llm() -> ChatOpenAI:
             temperature=0.7,
         )
     return _llm
-
-
-def get_vision_llm() -> ChatOpenAI:
-    """获取视觉模型（用于图像描述，回到 VISION_* 配置，未配则回退到主 LLM）"""
-    global _vision_llm
-    if _vision_llm is None:
-        api_key = settings.VISION_API_KEY or settings.OPENAI_API_KEY
-        base_url = settings.VISION_BASE_URL or settings.OPENAI_BASE_URL
-        model = settings.VISION_MODEL
-        _vision_llm = ChatOpenAI(
-            openai_api_key=api_key,
-            openai_api_base=base_url,
-            model=model,
-            temperature=0.7,
-            max_tokens=200,
-        )
-    return _vision_llm
 
 
 # --- Tool definitions -------------------------------------------------------
@@ -198,12 +180,12 @@ def _execute_tool(
             objects = tool_args.get("objects")
             top_k = tool_args.get("top_k", 20)
 
-            # 无任何筛选条件 → 预览模式，最多 5 张
+            # 无任何筛选条件 → 返回最近上传的照片
             if not keyword and not person_name and not objects:
                 from app.crud.photo import get_photo_list
                 photos, _ = get_photo_list(
                     db=db, owner_id=uuid.UUID(owner_id),
-                    page=1, page_size=min(top_k, 5), sort_by="upload_time", order="desc",
+                    page=1, page_size=min(top_k, 20), sort_by="upload_time", order="desc",
                     is_deleted=False,
                 )
                 return json.dumps({
