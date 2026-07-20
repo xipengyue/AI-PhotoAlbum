@@ -69,6 +69,7 @@ export interface ModelInfo {
   id: string
   model_name: string
   task_name: string
+  description?: string | null
   status: string
   file_size: number | null
   file_path: string | null
@@ -234,7 +235,7 @@ export const trainingApi = {
   },
 
   /** 更新模型信息（任务名称和描述） */
-  updateModel(modelName: string, data: { task_name: string; description?: string }) {
+  updateModel(modelName: string, data: { task_name: string; description?: string | null }) {
     return request.patch(`/models/${modelName}`, data)
   },
 

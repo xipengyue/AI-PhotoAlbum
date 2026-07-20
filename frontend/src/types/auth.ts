@@ -15,6 +15,8 @@ export interface RegisterParams {
   email: string
   password: string
   nickname?: string
+  captcha_id?: string
+  captcha_code?: string
 }
 
 export interface UpdateProfileParams {

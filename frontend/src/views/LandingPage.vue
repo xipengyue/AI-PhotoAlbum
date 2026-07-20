@@ -128,7 +128,6 @@
           <div
             v-for="(feature, i) in features"
             :key="feature.title"
-            :ref="el => featureRefs[i] = el"
             :style="{ transitionDelay: `${0.05 + i * 0.07}s` }"
             class="feature-card group relative p-8 rounded-2xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 overflow-hidden"
           >
@@ -166,7 +165,6 @@
           <div
             v-for="(step, i) in steps"
             :key="i"
-            :ref="el => stepRefs[i] = el"
             :style="{ transitionDelay: `${0.05 + i * 0.1}s` }"
             class="step-card relative text-center"
           >
@@ -202,7 +200,6 @@
           <div
             v-for="(tech, i) in techs"
             :key="tech.name"
-            :ref="el => techRefs[i] = el"
             :style="{ transitionDelay: `${0.02 + i * 0.03}s` }"
             class="tech-item flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md hover:-translate-y-1 transition-all duration-300"
           >
@@ -232,7 +229,6 @@
           <div
             v-for="(scene, idx) in scenes"
             :key="idx"
-            :ref="el => sceneRefs[idx] = el"
             :style="{ transitionDelay: `${0.05 + idx * 0.1}s` }"
             class="scene-card relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 text-white group cursor-default"
             :class="scene.gradient"
@@ -329,10 +325,6 @@ function useRevealOnScroll() {
 
 // ── refs ─────────────────────────────
 const featuresRef = ref<HTMLElement | null>(null)
-const featureRefs = reactive<(Element | null)[]>([])
-const stepRefs = reactive<(Element | null)[]>([])
-const techRefs = reactive<(Element | null)[]>([])
-const sceneRefs = reactive<(Element | null)[]>([])
 const countRefs = ref<HTMLElement[]>([])
 
 function scrollToFeatures() {
