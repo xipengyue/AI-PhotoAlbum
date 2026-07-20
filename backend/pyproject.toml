@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "ai-photo-album-backend"
 version = "0.1.0"
 description = "AI智能相册后端服务"
@@ -33,6 +33,8 @@ dependencies = [
     "piexif>=1.1.3",
     # AI 推理
     "onnxruntime>=1.20.0",
+    # 人脸检测
+    "insightface>=0.7.3",
     "numpy>=1.26.0",
     "transformers>=4.40.0",
     # 工具
