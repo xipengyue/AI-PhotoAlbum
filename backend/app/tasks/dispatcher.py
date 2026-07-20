@@ -5,10 +5,12 @@
     pending → running → completed / failed
 
 设计:
-    - TASK_HANDLERS 处理器注册表：仅注册当前已具备能力的任务类型。
-    - run_pending_tasks 只领取注册表中存在的类型，其余（依赖尚未接入的 AI 模型，
-      如 face_detect / image_description / quality_assessment）保持 pending，
-      交由负责相应模型的成员补齐 handler 后自动纳入调度，避免无限失败循环。
+    - TASK_HANDLERS 处理器注册表：包含已具备能力的任务类型 + 占位任务类型。
+    - run_pending_tasks 只领取注册表中存在的类型。
+    - 尚未接入模型的任务类型（face_detect / image_description / quality_assessment）
+      注册占位 handler：被领取后直接消费为 completed，result 标注 skipped/未接入，
+      避免其永久停留 pending（前端表现为“等待中”不动）。真实实现就绪后，直接替换
+      TASK_HANDLERS 中对应项即可，无需改动调度器与上游任务创建逻辑。
 
 扩展点（多 worker）:
     当前按单进程/单调度器设计，逐条领取无竞争。若未来多 worker 并发消费，
@@ -110,12 +112,39 @@ def _handle_geocode(db: Session, task: Task) -> dict:
     return {"applied": True, "city": geo.get("city")}
 
 
-# 处理器注册表：仅注册当前已具备能力的任务类型
+# 占位任务类型：底层模型尚未接入，注册占位 handler 使其被消费为 completed，
+# 避免永久 pending。真实 handler 就绪后直接替换 TASK_HANDLERS 中对应项即可。
+_PLACEHOLDER_REASONS: Dict[TaskType, str] = {
+    TaskType.face_detect: "InsightFace 人脸检测尚未接入",
+    TaskType.image_description: "画面描述模型尚未接入",
+    TaskType.quality_assessment: "质量评分模型尚未接入",
+}
+
+
+def _make_placeholder_handler(task_type: TaskType) -> Callable[[Session, Task], dict]:
+    """生成占位 handler：不做实际分析，仅返回 skipped/未接入 标记"""
+    reason = _PLACEHOLDER_REASONS[task_type]
+
+    def _handler(db: Session, task: Task) -> dict:  # noqa: ARG001
+        return {"skipped": True, "reason": reason}
+
+    return _handler
+
+
+# 占位任务类型集合（供测试/排查使用）
+PLACEHOLDER_TASK_TYPES = set(_PLACEHOLDER_REASONS)
+
+
+# 处理器注册表：已具备能力的任务类型 + 占位任务类型
 TASK_HANDLERS: Dict[TaskType, Callable[[Session, Task], dict]] = {
     TaskType.object_detection: _handle_object_detection,
     TaskType.image_embedding: _handle_image_embedding,
     TaskType.exif_extract: _handle_exif_extract,
     TaskType.geocode: _handle_geocode,
+    # 占位（未接入模型）——被消费为 completed，result 标注 skipped
+    TaskType.face_detect: _make_placeholder_handler(TaskType.face_detect),
+    TaskType.image_description: _make_placeholder_handler(TaskType.image_description),
+    TaskType.quality_assessment: _make_placeholder_handler(TaskType.quality_assessment),
 }
 
 
@@ -158,4 +187,4 @@ def run_pending_tasks(db: Session, limit: int = 10) -> dict:
     return {"completed": completed, "failed": failed, "total": len(tasks)}
 
 
-__all__ = ["TASK_HANDLERS", "run_pending_tasks"]
+__all__ = ["TASK_HANDLERS", "PLACEHOLDER_TASK_TYPES", "run_pending_tasks"]
