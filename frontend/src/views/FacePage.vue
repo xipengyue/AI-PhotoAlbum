@@ -20,6 +20,7 @@
           <template v-else>
             <p class="text-sm text-gray-400 dark:text-dark-text-secondary mr-2">系统自动识别照片中的人脸并聚类</p>
             <el-button :disabled="identities.length < 2" @click="enterMergeMode">合并人物</el-button>
+            <el-button size="small" @click="handleCleanup">清理空聚类</el-button>
           </template>
         </div>
       </div>
@@ -312,6 +313,16 @@ async function confirmMerge() {
     merging.value = false
   }
 }
+
+    async function handleCleanup() {
+      try {
+        const res = await faceApi.cleanupEmpty()
+        ElMessage.success('已清理 ' + res.data.deleted + ' 个空聚类')
+        loadIdentities()
+      } catch {
+        // handled by interceptor
+      }
+    }
 
 // ── 图片预览 ─────────────────────────
 const previewVisible = ref(false)

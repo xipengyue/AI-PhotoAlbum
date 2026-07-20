@@ -26,6 +26,11 @@ export const faceApi = {
     })
   },
 
+  /** 清理无人脸的空聚类 */
+  cleanupEmpty() {
+    return request.post('/faces/cleanup')
+  },
+
   /** 批量合并多个聚类到目标聚类 */
   mergeClustersBatch(sourceClusterIds: string[], targetClusterId: string) {
     return request.post('/faces/identities/merge', {
