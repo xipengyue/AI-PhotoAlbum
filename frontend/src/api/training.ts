@@ -156,7 +156,7 @@ export const trainingApi = {
 
   /** 获取任务详情（含指标） */
   getTaskDetail(id: string) {
-    return request.get<{ task: TrainingTask; metrics: MetricItem[] }>(`/training/tasks/${id}`)
+    return request.get<{ task: TrainingTask; metrics: MetricItem[]; logs: string[] }>(`/training/tasks/${id}`)
   },
 
   /** 启动训练 */
@@ -231,6 +231,11 @@ export const trainingApi = {
   /** 删除模型 */
   deleteModel(modelName: string) {
     return request.delete(`/models/${modelName}`)
+  },
+
+  /** 更新模型信息（任务名称和描述） */
+  updateModel(modelName: string, data: { task_name: string; description?: string }) {
+    return request.patch(`/models/${modelName}`, data)
   },
 
   // --- 数据集管理 ---

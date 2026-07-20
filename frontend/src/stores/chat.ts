@@ -95,7 +95,7 @@ export const useChatStore = defineStore('chat', () => {
         }
       })
     } catch {
-      // handled by interceptor
+      messages.value = []
     } finally {
       loadingMessages.value = false
     }

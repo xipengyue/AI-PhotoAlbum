@@ -17,6 +17,7 @@ specialist agent, then aggregates the results into a natural-language reply.
 import json
 import logging
 from typing import Dict, List, Optional, Any
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
@@ -37,48 +38,38 @@ from app.services.search_service import (
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Supervisor routing prompt
-# ---------------------------------------------------------------------------
 
 SUPERVISOR_PROMPT = """You are a supervisor agent that routes user requests to specialist agents.
 
-Available specialist agents and when to use them:
+CRITICAL INSTRUCTIONS:
+1. You MUST call tools when the user asks for an action. Text-only replies do nothing.
+2. Use Chinese keywords when user speaks Chinese. CLIP works with any language.
+3. Focus on the CURRENT request. Ignore unrelated context from previous messages.
+4. You have up to 8 rounds. Work STEP BY STEP across rounds.
+5. For albums: search_photos FIRST, then create_album_tool + add_to_album.
 
-1. **search_photos(keyword, person_name, objects, top_k)** --- General photo search.
-   Use when: the user wants to find photos by description, scene, or general content.
+1. **search_photos(keyword, person_name, objects, top_k)** --- CLIP + YOLO search.
+   keyword: user''s language (Chinese if user uses Chinese)
+   objects: COCO-80 English labels for YOLO filter (optional)
+   Examples: keyword=植物, objects=["potted plant"]
+   Chinese-to-COCO: 猫=cat 狗=dog 鸟=bird 人=person 车=car
+   花/植物="potted plant"  手机="cell phone"  食物="pizza"/"cake"
 
-2. **detection_agent(target_objects, photo_ids)** --- YOLO object detection specialist.
-   Use when: the user asks about specific physical objects (animals, vehicles, furniture, etc.)
-   Examples: "photos with dogs", "find a car", "show me cats and birds"
-
-3. **face_agent(action, person_name)** --- Face recognition specialist.
-   Use when: the user asks about specific people or unnamed faces.
-   Examples: "photos of mom", "who are these people", "show unnamed faces"
-
-4. **metadata_agent(time_range, location, camera_model)** --- Time/location/camera specialist.
-   Use when: the user mentions time periods, places, or camera devices.
-   Examples: "photos from last summer", "Shanghai photos", "iPhone 15 photos"
-
+2. **detection_agent(target_objects, photo_ids)** --- YOLO for known photos.
+3. **face_agent(action, person_name)** --- Face recognition.
+4. **metadata_agent(time_range, location, camera_model)** --- Metadata search.
 5. **list_albums / create_album_tool / add_to_album** --- Album management.
-   Use when: the user wants to manage albums.
-
-6. **get_stats** --- Photo statistics.
-   Use when: the user asks about counts or storage.
-
-7. **analyze_image** --- Analyze an uploaded image.
-   Use when: the user uploads an image and asks what''s in it.
+6. **get_stats** --- Statistics.
+7. **analyze_image** --- Image analysis.
 
 Routing rules:
-- If the user mentions both objects AND a person, call both search_photos (with objects) and face_agent, then intersect.
-- If the user mentions time/location AND objects, call metadata_agent first, then search_photos with those photo_ids.
-- If the user just chats or asks a simple question, reply directly without calling any tool.
-- Use Chinese in your replies. Be warm and helpful."""
+- You have 8 rounds; use them to complete the full task.
+- If search returns 0 results, try different keywords next round.
+- Keep calling tools until the task is fully done. Do NOT stop early.
+- If you say you will do it, CALL THE TOOL NOW. Do not describe plans, execute.
+- After all tools are called and the task is done, summarize in Chinese.
+- Be warm and helpful. When result includes photo_display_names, reference them."""
 
-
-# ---------------------------------------------------------------------------
-# Specialised tools for Supervisor
-# ---------------------------------------------------------------------------
 
 @tool
 def detection_agent(
@@ -124,20 +115,51 @@ def metadata_agent(
     pass
 
 
-# All Supervisor tools (specialists + basic tools from LLM agent)
-# The basic tools are imported from llm_agent for reuse
-
 SUPERVISOR_TOOLS = [
     detection_agent,
     face_agent,
     metadata_agent,
 ]
-# We also register the basic tools from llm_agent at runtime
 
 
-# ---------------------------------------------------------------------------
-# Supervisor tool executor
-# ---------------------------------------------------------------------------
+def _enrich_photo_names(result: dict, db: Session) -> dict:
+    """Add human-readable photo names to tool results for better LLM replies.
+
+    Mutates the result dict in-place to add a photo_display_names list.
+    """
+    from app.crud import photo as photo_crud
+
+    photo_ids: List[str] = []
+
+    if "photo_ids" in result and isinstance(result["photo_ids"], list):
+        photo_ids = result["photo_ids"]
+    elif "photos" in result and isinstance(result["photos"], list):
+        photo_ids = [
+            p.get("photo_id") or p.get("id")
+            for p in result["photos"]
+            if p.get("photo_id") or p.get("id")
+        ]
+
+    if not photo_ids:
+        return result
+
+    names = []
+    for pid in photo_ids:
+        if len(names) >= 10:
+            break
+        try:
+            photo = photo_crud.get_photo_by_id(db, UUID(pid))
+            if photo:
+                name = photo.original_name or photo.filename or pid[:8]
+                names.append(name)
+            else:
+                names.append(pid[:8])
+        except Exception:
+            names.append(pid[:8])
+
+    result["photo_display_names"] = names
+    return result
+
 
 def _execute_supervisor_tool(
     tool_name: str,
@@ -157,7 +179,6 @@ def _execute_supervisor_tool(
                 return json.dumps({"found": 0, "photos": [], "error": "no target_objects"}, ensure_ascii=False)
 
             if not photo_ids:
-                # Need to do a broad search first
                 keyword = " ".join(target_objects)
                 clip_results = clip_search_by_text(db, keyword, top_k=100, owner_id=owner_id)
                 photo_ids = [r["photo_id"] for r in clip_results]
@@ -168,6 +189,7 @@ def _execute_supervisor_tool(
                 db=db,
                 image_bytes=image_bytes,
             )
+            _enrich_photo_names(result, db)
             return json.dumps(result, ensure_ascii=False)
 
         elif tool_name == "face_agent":
@@ -179,6 +201,7 @@ def _execute_supervisor_tool(
                 db=db,
                 owner_id=owner_id,
             )
+            _enrich_photo_names(result, db)
             return json.dumps(result, ensure_ascii=False)
 
         elif tool_name == "metadata_agent":
@@ -192,10 +215,10 @@ def _execute_supervisor_tool(
                 db=db,
                 owner_id=owner_id,
             )
+            _enrich_photo_names(result, db)
             return json.dumps(result, ensure_ascii=False)
 
         else:
-            # Fall back to LLM agent''s tool executor for basic tools
             return llm_execute_tool(
                 tool_name, tool_args, db, owner_id, image_bytes=image_bytes
             )
@@ -204,10 +227,6 @@ def _execute_supervisor_tool(
         logger.error(f"Supervisor tool execution failed [{tool_name}]: {e}")
         return json.dumps({"error": str(e)})
 
-
-# ---------------------------------------------------------------------------
-# Supervisor main loop
-# ---------------------------------------------------------------------------
 
 def run_supervisor(
     user_message: str,
@@ -224,7 +243,6 @@ def run_supervisor(
     """
     llm = get_llm()
 
-    # Merge supervisor tools with basic tools from llm_agent
     from app.services.agent.llm_agent import TOOLS as BASIC_TOOLS
     all_tools = BASIC_TOOLS + SUPERVISOR_TOOLS
     llm_with_tools = llm.bind_tools(all_tools)
@@ -250,7 +268,7 @@ def run_supervisor(
     all_photos = []
     shared_photo_ids: List[str] = []
 
-    for _round in range(3):
+    for _round in range(8):
         if not response.tool_calls:
             break
 
@@ -268,13 +286,15 @@ def run_supervisor(
             )
             result_data = json.loads(result_json)
 
-            # Collect photo IDs from different tools
+            # Collect results from both "photos" and "photo_ids" keys
             if "photos" in result_data:
                 for p in result_data["photos"]:
                     pid = p.get("photo_id") or p.get("id")
                     if pid:
                         all_photos.append({"photo_id": pid, "score": p.get("score", 0)})
             if "photo_ids" in result_data:
+                for pid in result_data["photo_ids"]:
+                    all_photos.append({"photo_id": pid, "score": 0.0})
                 shared_photo_ids.extend(result_data["photo_ids"])
 
             tool_results_for_frontend.append({
@@ -288,10 +308,10 @@ def run_supervisor(
         messages.append(response)
         messages.extend(tool_messages)
         response = llm_with_tools.invoke(messages)
+        messages.append(SystemMessage(content=f"[STATE] Round {_round + 1}. Photos collected: {len(all_photos)}. IDs available: {len(shared_photo_ids)}. Tool count: {len(tool_results_for_frontend)}."))
 
     reply = response.content if hasattr(response, 'content') else str(response)
 
-    # Deduplicate photos
     seen = set()
     unique_photos = []
     for p in all_photos:

@@ -62,9 +62,9 @@
             <el-tag v-if="row.is_default" type="success" size="small" effect="dark">&#10003;</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-           <el-button link type="primary" size="small" @click="showDetail(row)">详情</el-button>
+           <el-button link type="primary" size="small" @click="showDetail(row)">详情</el-button> <el-button link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
             <el-popover placement="bottom" :width="130" trigger="click">
               <template #reference>
                 <el-button link type="primary" size="small" :disabled="row.status !== 'completed' || row.config?.imported">导出</el-button>
@@ -135,8 +135,24 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="importDialogVisible = false">取消</el-button>
+      <el-button @click="importDialogVisible = false">保存</el-button>
       <el-button type="primary" :loading="importLoading" @click="handleImport">导入</el-button>
+    </template>
+  </el-dialog>
+
+  <!-- ??????? -->
+  <el-dialog v-model="editDialogVisible" title="编辑模型" width="480px">
+    <el-form label-width="90px">
+      <el-form-item label="任务名称" required>
+        <el-input v-model="editTaskName" placeholder="输入任务名称" />
+      </el-form-item>
+      <el-form-item label="描述">
+        <el-input v-model="editDescription" type="textarea" :rows="3" placeholder="输入描述（可选）" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="editDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="editLoading" @click="handleEditSubmit">保存</el-button>
     </template>
   </el-dialog>
 </template>
@@ -325,6 +341,40 @@ async function handleImport() {
     importLoading.value = false
   }
 }
+const editDialogVisible = ref(false)
+const editLoading = ref(false)
+const editModelName = ref('')
+const editTaskName = ref('')
+const editDescription = ref('')
+
+function handleEdit(model: ModelInfo) {
+  editModelName.value = model.model_name
+  editTaskName.value = model.task_name
+  editDescription.value = model.description || ''
+  editDialogVisible.value = true
+}
+
+async function handleEditSubmit() {
+  if (!editTaskName.value.trim()) { ElMessage.warning('请输入任务名称'); return }
+  editLoading.value = true
+  try {
+    await trainingApi.updateModel(editModelName.value, {
+      task_name: editTaskName.value.trim(),
+      description: editDescription.value || null,
+    })
+    ElMessage.success('模型信息已更新')
+    editDialogVisible.value = false
+    await loadModels()
+    if (detailVisible.value && detailData.value?.model?.model_name === editModelName.value) {
+      showDetail(detailData.value.model)
+    }
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.detail || '更新失败')
+  } finally {
+    editLoading.value = false
+  }
+}
+
 async function showDetail(model: ModelInfo) {
   try {
     const res = await trainingApi.getModelDetail(model.model_name)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for detection_service.py
 """
 import pytest
@@ -49,14 +49,14 @@ class TestDetectObjects:
         result = detect_objects("/nonexistent/path.jpg")
         assert result["success"] is False
         assert result["error"] is not None
-        assert "不存在" in result["error"]
+        assert "涓嶅瓨鍦? in result["error"]
 
     @patch("app.services.detection_service._get_model")
     def test_model_load_failure(self, mock_get_model, mock_file):
         mock_get_model.return_value = None
         result = detect_objects(mock_file)
         assert result["success"] is False
-        assert result["error"] == "YOLO 模型加载失败"
+        assert result["error"] == "YOLO 妯″瀷鍔犺浇澶辫触"
 
     def test_default_model_name(self):
         assert DEFAULT_MODEL == "yolo26n.pt"
@@ -79,3 +79,4 @@ class TestDrawDetections:
 # Note: detect_objects / detect_objects_from_bytes with real model
 # require ultralytics installed. The tests above cover error paths.
 # Full integration test requires a real YOLO model and image.
+

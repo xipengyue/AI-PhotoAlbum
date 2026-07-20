@@ -272,6 +272,7 @@ async def upload_single_photo(
     # 8. 创建异步分析任务
     task_types = [
         TaskType.exif_extract,       # EXIF 提取
+        TaskType.geocode,            # 反向地理编码 GPS → 省/市/区
         TaskType.object_detection,   # YOLO 目标检测 → 自动标签
         TaskType.face_detect,        # 人脸检测
         TaskType.image_description,  # AI 描述
@@ -280,8 +281,18 @@ async def upload_single_photo(
     ]
     tasks = create_tasks_batch(db, owner_id=owner_id, photo_id=photo.id, task_types=task_types)
 
+    # 9. 立即执行 YOLO 目标检测（写入 ImageDescription.tags，供后续搜索使用）
+    from app.tasks import process_photo_detection
+    for t in tasks:
+        if t.task_type == TaskType.object_detection:
+            process_photo_detection(
+                photo_id=str(photo.id),
+                image_path=file_path,
+                task_id=str(t.id),
+            )
+            break
+
     return {
-        "photo": photo,
         "task_ids": [t.id for t in tasks],
         "is_duplicate": False,
         "skipped_md5": None,
