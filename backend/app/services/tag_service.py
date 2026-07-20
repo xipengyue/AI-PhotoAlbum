@@ -10,6 +10,7 @@
 
 import logging
 from typing import List, Optional
+from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.photo import Photo
@@ -20,54 +21,44 @@ from app.services.detection_service import detect_objects, get_detection_summary
 logger = logging.getLogger("app.services.tag")
 
 
-def run_object_detection(photo: Photo, top_k: int = 10) -> List[str]:
-    """
-    对一张照片运行 YOLO 目标检测，返回标签列表
-
-    Args:
-        photo: Photo ORM 对象
-        top_k: 最多保留几个标签
-
-    Returns:
-        标签列表，如 ["person", "car", "dog"]
-    """
+def run_object_detection(photo: Photo, top_k: int = 10) -> List[dict]:
+    """对一张照片运行 YOLO 目标检测，返回 [{label, count, max_confidence}]"""
     try:
         result = detect_objects(photo.file_path, confidence_threshold=0.3)
         if not result.get("success"):
             logger.warning(f"检测失败: {result.get('error', '未知错误')}")
             return []
         summary = get_detection_summary(result["detections"])
-        labels = [item["label"] for item in summary[:top_k]]
-        logger.info(f"检测完成: {photo.filename} → {labels}")
-        return labels
+        logger.info(f"检测完成: {photo.filename} → {[s['label'] for s in summary[:top_k]]}")
+        return summary[:top_k]
     except Exception as e:
         logger.warning(f"YOLO 检测失败 {photo.filename}: {e}")
         return []
 
 
 def generate_tags_for_photo(db: Session, photo: Photo) -> Optional[ImageDescription]:
-    """
-    对一张照片运行检测，将标签写入 ImageDescription
-
-    如果已有 ImageDescription 记录则更新 tags 字段，
-    否则创建新记录。即使检测结果为空也写入空数组。
-    """
-    labels = run_object_detection(photo)
+    """对一张照片运行检测，将标签写入 ImageDescription.tags（dict 格式）"""
+    items = run_object_detection(photo)
+    tags_payload = {"detections": [], "summary": items, "total": len(items), "model": "yolo26n.pt"}
 
     desc = db.query(ImageDescription).filter(
         ImageDescription.photo_id == photo.id
     ).first()
 
     if desc:
-        existing = set(desc.tags or [])
-        desc.tags = list(existing | set(labels))
+        old_summary = desc.tags.get("summary", []) if isinstance(desc.tags, dict) else []
+        existing_labels = {s["label"] for s in old_summary if isinstance(s, dict) and "label" in s}
+        new_labels = {s["label"] for s in items if isinstance(s, dict) and "label" in s}
+        # 新检测优先（含真实置信度），旧标签中未被重新检测的保留
+        merged = list(items)
+        for old in old_summary:
+            if isinstance(old, dict) and old.get("label") and old["label"] not in new_labels:
+                merged.append(old)
+        tags_payload = {"detections": [], "summary": merged, "total": len(merged), "model": "yolo26n.pt"}
+        desc.tags = tags_payload
     else:
         import uuid
-        desc = ImageDescription(
-            id=uuid.uuid4(),
-            photo_id=photo.id,
-            tags=labels,
-        )
+        desc = ImageDescription(id=uuid.uuid4(), photo_id=photo.id, tags=tags_payload)
         db.add(desc)
 
     db.commit()
@@ -75,7 +66,7 @@ def generate_tags_for_photo(db: Session, photo: Photo) -> Optional[ImageDescript
 
     # 标记照片已完成此任务
     from app.crud.photo import update_processed_tasks
-    update_processed_tasks(db, photo, "object_detection", {"labels": labels})
+    update_processed_tasks(db, photo, "object_detection", {"labels": [s["label"] for s in items]})
 
     return desc
 
@@ -112,7 +103,7 @@ def process_pending_detection_tasks(db: Session, limit: int = 10) -> dict:
                 continue
 
             desc = generate_tags_for_photo(db, photo)
-            labels = desc.tags if desc else []
+            labels = [s["label"] for s in (desc.tags.get("summary", []) if isinstance(desc.tags, dict) else [])] if desc else []
 
             update_task_status(
                 db, task, TaskStatus.completed,

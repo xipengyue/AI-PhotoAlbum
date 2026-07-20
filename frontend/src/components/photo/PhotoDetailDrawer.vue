@@ -301,7 +301,16 @@ const hasLocation = computed(() => hasCoords.value || Boolean(locationText.value
 const aiDesc = computed(() => detail.value?.description?.description || '')
 const aiTags = computed<string[]>(() => {
   const tags = detail.value?.description?.tags
-  if (Array.isArray(tags)) return tags
+  if (Array.isArray(tags)) return tags.filter(t => typeof t === 'string')
+  if (typeof tags === 'object' && tags !== null) {
+    // dict 格式：{detections: [...], summary: [{label, count}], total: N, model: "..."}
+    if (Array.isArray(tags.summary)) {
+      return tags.summary
+        .filter((s: any) => s && typeof s.label === 'string')
+        .map((s: any) => s.label)
+    }
+    return []
+  }
   if (typeof tags === 'string') {
     try { return JSON.parse(tags) } catch { return [] }
   }

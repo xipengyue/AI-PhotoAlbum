@@ -48,8 +48,11 @@ def _handle_object_detection(db: Session, task: Task) -> dict:
 
     photo = _get_photo(db, task)
     desc = generate_tags_for_photo(db, photo)
-    summary = (desc.tags or {}).get("summary", []) if desc else []
-    labels = [item["label"] for item in summary if isinstance(item, dict) and item.get("label")]
+    if desc and isinstance(desc.tags, dict):
+        summary = desc.tags.get("summary", [])
+        labels = [s["label"] for s in summary if isinstance(s, dict) and "label" in s]
+    else:
+        labels = []
     return {"labels": labels, "count": len(labels)}
 
 
