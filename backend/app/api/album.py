@@ -14,10 +14,24 @@ from app.schemas.response import BaseResponse, PaginatedData
 from app.schemas.album import AlbumCreate, AlbumUpdate, AlbumResponse
 from app.crud import album as album_crud
 from app.crud import photo as photo_crud
+from app.services import album_service
 
 logger = logging.getLogger("app.api.album")
 
 router = APIRouter(prefix="/api/albums", tags=["相册"])
+
+_SMART_TYPES = ("smart", "conditional")
+
+
+def _album_type_str(album) -> str:
+    return album.album_type.value if hasattr(album.album_type, "value") else str(album.album_type)
+
+
+def _album_photo_count(db: Session, album) -> int:
+    """相册照片数：smart/conditional 动态解析，manual 走关联表计数"""
+    if _album_type_str(album) in _SMART_TYPES:
+        return album_service.count_smart_album(db, album.owner_id, album.conditions)
+    return album_crud.get_album_photo_count(db, album.id)
 
 
 @router.get("", response_model=BaseResponse[List[AlbumResponse]])
@@ -32,7 +46,7 @@ def get_albums(
     
     result = []
     for album in albums:
-        photo_count = album_crud.get_album_photo_count(db, album.id)
+        photo_count = _album_photo_count(db, album)
         result.append(AlbumResponse(
             id=str(album.id),
             owner_id=str(album.owner_id),
@@ -104,7 +118,7 @@ def get_album(
     if album.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此相册")
     
-    photo_count = album_crud.get_album_photo_count(db, album.id)
+    photo_count = _album_photo_count(db, album)
     
     return BaseResponse(data=AlbumResponse(
         id=str(album.id),
@@ -151,7 +165,7 @@ def update_album(
             raise HTTPException(status_code=400, detail="无效的照片ID")
     
     album = album_crud.update_album(db, album, **update_data)
-    photo_count = album_crud.get_album_photo_count(db, album.id)
+    photo_count = _album_photo_count(db, album)
     
     return BaseResponse(data=AlbumResponse(
         id=str(album.id),
@@ -222,7 +236,12 @@ def get_album_photos(
     if album.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此相册")
     
-    total, photos = album_crud.get_album_photos(db, album_uuid, page, page_size)
+    if _album_type_str(album) in _SMART_TYPES:
+        total, photos = album_service.resolve_smart_album(
+            db, album.owner_id, album.conditions, page, page_size
+        )
+    else:
+        total, photos = album_crud.get_album_photos(db, album_uuid, page, page_size)
     
     items = []
     for photo in photos:
@@ -281,6 +300,9 @@ def add_photo_to_album(
     if album.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权修改此相册")
     
+    if _album_type_str(album) in _SMART_TYPES:
+        raise HTTPException(status_code=400, detail="智能相册由条件自动聚合，不能手动增删照片")
+    
     photo = photo_crud.get_photo_by_id(db, photo_uuid)
     if not photo:
         raise HTTPException(status_code=404, detail="照片不存在")
@@ -314,6 +336,9 @@ def remove_photo_from_album(
     
     if album.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权修改此相册")
+    
+    if _album_type_str(album) in _SMART_TYPES:
+        raise HTTPException(status_code=400, detail="智能相册由条件自动聚合，不能手动增删照片")
     
     success = album_crud.remove_photo_from_album(db, album_uuid, photo_uuid)
     if not success:
