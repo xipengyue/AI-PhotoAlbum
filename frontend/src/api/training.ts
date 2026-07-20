@@ -233,6 +233,11 @@ export const trainingApi = {
     return request.delete(`/models/${modelName}`)
   },
 
+  /** 更新模型信息（任务名称和描述） */
+  updateModel(modelName: string, data: { task_name: string; description?: string }) {
+    return request.patch(`/models/${modelName}`, data)
+  },
+
   // --- 数据集管理 ---
 
   /** 上传数据集 ZIP */
