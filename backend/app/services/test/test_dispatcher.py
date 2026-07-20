@@ -36,18 +36,18 @@ def _db_returning(tasks):
 
 
 class TestHandledTypes:
-    def test_only_capable_types_registered(self):
-        """依赖尚未接入模型的任务类型不应被领取"""
+    def test_all_capable_types_registered(self):
+        """七类任务均已接入真实 handler 并注册"""
         keys = set(dispatcher.TASK_HANDLERS.keys())
         assert keys == {
             TaskType.object_detection,
             TaskType.image_embedding,
             TaskType.exif_extract,
             TaskType.geocode,
+            TaskType.face_detect,
+            TaskType.image_description,
+            TaskType.quality_assessment,
         }
-        for excluded in (TaskType.face_detect, TaskType.image_description,
-                         TaskType.quality_assessment):
-            assert excluded not in keys
 
 
 class TestRunPendingTasks:
@@ -66,7 +66,10 @@ class TestRunPendingTasks:
         with patch.object(dispatcher, "update_task_status", side_effect=_fake_update), \
              patch.object(dispatcher, "_get_photo", return_value=photo), \
              patch("app.services.tag_service.generate_tags_for_photo",
-                   return_value=MagicMock(tags=["person", "car"])), \
+                   return_value=MagicMock(tags={"summary": [
+                       {"label": "person", "count": 1, "max_confidence": 0.9},
+                       {"label": "car", "count": 1, "max_confidence": 0.8},
+                   ]})), \
              patch("app.services.photo_vector_service.has_vector", return_value=False), \
              patch("app.services.photo_vector_service.generate_photo_vector",
                    return_value=object()), \
@@ -91,7 +94,12 @@ class TestRunPendingTasks:
         with patch.object(dispatcher, "update_task_status", side_effect=_fake_update), \
              patch.object(dispatcher, "_get_photo", return_value=photo), \
              patch("app.services.tag_service.generate_tags_for_photo",
-                   side_effect=[MagicMock(tags=["dog"]), RuntimeError("boom")]):
+                   side_effect=[
+                       MagicMock(tags={"summary": [
+                           {"label": "dog", "count": 1, "max_confidence": 0.9},
+                       ]}),
+                       RuntimeError("boom"),
+                   ]):
             stats = dispatcher.run_pending_tasks(db, limit=10)
 
         assert stats["completed"] == 1

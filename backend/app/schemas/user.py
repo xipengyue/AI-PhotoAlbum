@@ -13,12 +13,16 @@ class UserCreate(BaseModel):
     email: EmailStr = Field(..., description="邮箱")
     password: str = Field(..., min_length=6, max_length=100, description="密码")
     nickname: Optional[str] = Field(None, max_length=50)
+    captcha_id: Optional[str] = Field(None, description="验证码ID")
+    captcha_code: Optional[str] = Field(None, description="验证码")
 
 
 class UserLogin(BaseModel):
     """用户登录"""
     username: str = Field(..., description="用户名或邮箱")
     password: str = Field(..., description="密码")
+    captcha_id: Optional[str] = Field(None, description="验证码ID")
+    captcha_code: Optional[str] = Field(None, description="验证码")
 
 
 class UserResponse(BaseModel):

@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useUserStore } from '@/stores/user'
@@ -12,7 +12,7 @@ declare module 'axios' {
 
 const request = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 300000,  // 5 分钟（AI 助手多轮对话可能较长）
 })
 
 // 请求拦截器：添加 Token
