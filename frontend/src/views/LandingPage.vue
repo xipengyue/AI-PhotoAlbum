@@ -128,7 +128,6 @@
           <div
             v-for="(feature, i) in features"
             :key="feature.title"
-            :ref="el => featureRefs[i] = el"
             :style="{ transitionDelay: `${0.05 + i * 0.07}s` }"
             class="feature-card group relative p-8 rounded-2xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 overflow-hidden"
           >
@@ -161,12 +160,11 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
           <!-- 连接线（桌面端） -->
-          <div class="hidden md:block absolute top-12 left-[18%] right-[18%] h-0.5 bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 dark:from-blue-800 dark:via-indigo-800 dark:to-purple-800" />
+          <div class="steps-line hidden md:block absolute top-12 left-[18%] right-[18%] h-0.5 bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 dark:from-blue-800 dark:via-indigo-800 dark:to-purple-800" />
 
           <div
             v-for="(step, i) in steps"
             :key="i"
-            :ref="el => stepRefs[i] = el"
             :style="{ transitionDelay: `${0.05 + i * 0.1}s` }"
             class="step-card relative text-center"
           >
@@ -202,7 +200,6 @@
           <div
             v-for="(tech, i) in techs"
             :key="tech.name"
-            :ref="el => techRefs[i] = el"
             :style="{ transitionDelay: `${0.02 + i * 0.03}s` }"
             class="tech-item flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md hover:-translate-y-1 transition-all duration-300"
           >
@@ -232,7 +229,6 @@
           <div
             v-for="(scene, idx) in scenes"
             :key="idx"
-            :ref="el => sceneRefs[idx] = el"
             :style="{ transitionDelay: `${0.05 + idx * 0.1}s` }"
             class="scene-card relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 text-white group cursor-default"
             :class="scene.gradient"
@@ -319,7 +315,7 @@ function useRevealOnScroll() {
     )
 
     // 观察所有带 reveal 类名的元素
-    document.querySelectorAll('.reveal-up, .reveal-up-delayed, .reveal-up-more, .reveal-up-most, .feature-card, .step-card, .tech-item, .scene-card, .stat-item').forEach(el => observe(el))
+    document.querySelectorAll('.reveal-up, .reveal-up-delayed, .reveal-up-more, .reveal-up-most, .feature-card, .step-card, .tech-item, .scene-card, .stat-item, .steps-line').forEach(el => observe(el))
   })
 
   onUnmounted(() => {
@@ -329,10 +325,6 @@ function useRevealOnScroll() {
 
 // ── refs ─────────────────────────────
 const featuresRef = ref<HTMLElement | null>(null)
-const featureRefs = reactive<(Element | null)[]>([])
-const stepRefs = reactive<(Element | null)[]>([])
-const techRefs = reactive<(Element | null)[]>([])
-const sceneRefs = reactive<(Element | null)[]>([])
 const countRefs = ref<HTMLElement[]>([])
 
 function scrollToFeatures() {
@@ -599,6 +591,18 @@ const scenes = [
 .stat-item.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* 三步连接线 —— 从左向右延伸 */
+.steps-line {
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: opacity 0.6s ease-out, transform 0.8s ease-out;
+}
+.steps-line.visible {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 /* ═══════════ 暗色模式适配 ═══════════ */
