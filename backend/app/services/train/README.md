@@ -51,7 +51,7 @@ Step 4/4: 保存最佳模型到 /data/models/lvis_finetuned/
 **使用方法**：
 
 ```bash
-cd <project_root>/backend
+cd /backend
 
 # 基础训练
 uv run python -m app.services.train.train_lvis --device 0
