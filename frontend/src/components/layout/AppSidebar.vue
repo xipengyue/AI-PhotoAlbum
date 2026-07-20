@@ -79,24 +79,24 @@
         </el-tooltip>
         <template #title><span class="menu-title">任务中心</span></template>
       </el-menu-item>
-      <el-menu-item index="/training" class="sidebar-item">
-        <el-tooltip content="模型训练" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
-          <el-icon><TrendCharts /></el-icon>
-        </el-tooltip>
-        <template #title><span class="menu-title">模型训练</span></template>
-      </el-menu-item>
-      <el-menu-item index="/models" class="sidebar-item">
-        <el-tooltip content="模型管理" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
-          <el-icon><Monitor /></el-icon>
-        </el-tooltip>
-        <template #title><span class="menu-title">模型管理</span></template>
-      </el-menu-item>
-      <el-menu-item index="/database" class="sidebar-item">
-        <el-tooltip content="数据集管理" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
-          <el-icon><DataBoard /></el-icon>
-        </el-tooltip>
-        <template #title><span class="menu-title">数据集管理</span></template>
-      </el-menu-item>
+      <el-sub-menu index="advanced" class="sidebar-item">
+        <template #title>
+          <el-icon><Operation /></el-icon>
+          <span class="menu-title">高级选项</span>
+        </template>
+          <el-menu-item index="/training">
+            <el-icon><TrendCharts /></el-icon>
+            <span>模型训练</span>
+          </el-menu-item>
+          <el-menu-item index="/models">
+            <el-icon><Monitor /></el-icon>
+            <span>模型管理</span>
+          </el-menu-item>
+          <el-menu-item index="/database">
+            <el-icon><DataBoard /></el-icon>
+            <span>数据集管理</span>
+          </el-menu-item>
+      </el-sub-menu>
       <el-menu-item index="/settings" class="sidebar-item">
         <el-tooltip content="设置" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
           <el-icon><Setting /></el-icon>
