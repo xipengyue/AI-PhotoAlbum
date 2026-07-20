@@ -45,6 +45,11 @@ Response requirements:
 - If there is a feature you cannot fulfill, be honest and suggest alternatives
 - Keep replies concise and well-organized, use emoji appropriately
 
+IMPORTANT: When the user asks to browse, analyze, or look at their photos
+without giving a specific search keyword, call search_photos with keyword=""
+to get recent photos with their AI descriptions. Always try to show users
+what photos they have before asking them to upload.
+
 When a user mentions specific objects (animals, vehicles, furniture, etc.):
 - Pass those objects via the objects parameter to search_photos for YOLO-based verification.
 - YOLO can detect 80 COCO classes including: person, dog, cat, bird, car, bicycle, motorcycle, airplane, boat, furniture, food, etc.
@@ -69,6 +74,26 @@ def get_llm() -> ChatOpenAI:
     return _llm
 
 
+_vision_llm: Optional[ChatOpenAI] = None
+
+
+def get_vision_llm() -> ChatOpenAI:
+    """获取视觉多模态 LLM 实例（用于看图生成描述）"""
+    global _vision_llm
+    if _vision_llm is None:
+        key = settings.VISION_API_KEY or settings.OPENAI_API_KEY
+        url = settings.VISION_BASE_URL or settings.OPENAI_BASE_URL
+        model = settings.VISION_MODEL or settings.OPENAI_MODEL
+        _vision_llm = ChatOpenAI(
+            openai_api_key=key,
+            openai_api_base=url,
+            model=model,
+            temperature=0.7,
+            max_tokens=200,
+        )
+    return _vision_llm
+
+
 # --- Tool definitions -------------------------------------------------------
 
 # Docstrings are read by the LLM, so use natural-language parameter descriptions.
@@ -79,34 +104,15 @@ def search_photos(
     keyword: str = "",
     person_name: Optional[str] = None,
     objects: Optional[List[str]] = None,
-    exclude_objects: Optional[List[str]] = None,
-    match_all: bool = False,
-    only: bool = False,
     top_k: int = 20,
 ) -> dict:
-    """Search photos by natural-language description, object detection tags, and person names.
-
-    Supports complex semantic queries via parameter combinations:
-      - AND: keyword="车", objects=["car","person"], match_all=True  → 同时有车和人
-      - OR:  keyword="宠物", objects=["cat","dog"]  → 有猫或狗
-      - NOT: keyword="车", objects=["car"], exclude_objects=["person"]  → 有车但没人（只包含车）
-      - ONLY: keyword="车", objects=["car"], only=True  → 只有车的照片（比 exclude_objects 更简单）
+    """Search or browse photos. Call WITHOUT keyword (keyword="") when user says 'analyze my photos', 'browse', 'show me what I have', or 'look at recent photos' — this returns recent photos with descriptions. Call WITH keyword when searching for specific content.
 
     Args:
-        keyword: Search keyword in USER'S language (Chinese if user uses Chinese), e.g. "车", "动物", "海边"
-        person_name: Person name, e.g. "妈妈", "小明". Leave empty if not needed.
-        objects: Objects to INCLUDE (YOLO COCO-80 labels, English only), e.g. ["car", "dog", "cat"]. OR logic by default.
-        exclude_objects: (不建议用于"只包含") Objects to EXCLUDE. 推荐用 only=True 代替.
-        match_all: When True, ALL objects in "objects" must be present (AND logic). Default False (OR logic, any match suffices).
-        top_k: Number of photos to return, default 20.
-
-    Chinese semantic patterns (how to use the parameters):
-      - "找车的照片"       → keyword="车", objects=["car"]
-      - "只包含车的照片"    → keyword="车", objects=["car"], only=True
-      - "包含车和人的照片"  → keyword="车人", objects=["car","person"], match_all=True
-      - "有车但没人的照片"  → keyword="车", objects=["car"], exclude_objects=["person"]
-      - "猫或狗的照片"      → keyword="猫狗", objects=["cat","dog"]
-      - "植物相关的照片"    → keyword="植物", objects=["potted plant"]
+        keyword: Search keyword. Leave "" to browse recent photos
+        person_name: Person name. Leave empty if not needed
+        objects: YOLO-detectable objects. Leave empty if not needed
+        top_k: Number of photos, default 20
     """
     pass  # implemented in _execute_tool
 
@@ -193,12 +199,29 @@ def _execute_tool(
             person_name = tool_args.get("person_name")
             objects = tool_args.get("objects")
             top_k = tool_args.get("top_k", 20)
-            exclude_objects = tool_args.get("exclude_objects")
-            match_all = tool_args.get("match_all", False)
-            only = tool_args.get("only", False)
 
+            # 无任何筛选条件 → 返回最近上传的照片
             if not keyword and not person_name and not objects:
-                keyword = "photo"
+                from app.crud.photo import get_photo_list
+                photos, _ = get_photo_list(
+                    db=db, owner_id=uuid.UUID(owner_id),
+                    page=1, page_size=min(top_k, 20), sort_by="upload_time", order="desc",
+                    is_deleted=False,
+                )
+                return json.dumps({
+                    "found": len(photos),
+                    "photos": [
+                        {
+                            "id": str(p.id),
+                            "name": p.original_name or p.filename,
+                            "desc": p.image_description.description if p.image_description else "",
+                            "tags": p.image_description.tags if p.image_description else [],
+                            "time": str(p.photo_time) if p.photo_time else "",
+                            "size": f"{p.width}x{p.height}" if p.width else "",
+                        }
+                        for p in photos
+                    ],
+                }, ensure_ascii=False)
 
             # Phase 1: CLIP search
             results = clip_search_by_text(
@@ -216,103 +239,50 @@ def _execute_tool(
                     results = [r for r in results if r["photo_id"] in face_ids]
 
             # Phase 2: YOLO tag filtering
-            # Phase 2: Direct YOLO tag search (independent of CLIP results)
-            if objects:
+            if objects and results:
+                photo_ids_in_results = [r["photo_id"] for r in results]
                 from uuid import UUID as _UUID
-                from sqlalchemy import or_
-                from app.models.photo import Photo
-
-                # Build label pattern for all target objects
-                target_lower = {o.lower() for o in objects}
-                owner_uuid = _UUID(owner_id) if owner_id else None
-
-                # Query ImageDescription with photos that have non-null tags
-                tag_rows = (
+                _pids = [_UUID(pid) for pid in photo_ids_in_results]
+                rows = (
                     db.query(ImageDescription.photo_id, ImageDescription.tags)
-                    .join(Photo, Photo.id == ImageDescription.photo_id)
                     .filter(
+                        ImageDescription.photo_id.in_(_pids),
                         ImageDescription.tags.isnot(None),
-                        Photo.is_deleted == False,
                     )
                     .all()
                 )
-                if owner_uuid:
-                    # Re-query with owner filter
-                    tag_rows = (
-                        db.query(ImageDescription.photo_id, ImageDescription.tags)
-                        .join(Photo, Photo.id == ImageDescription.photo_id)
-                        .filter(
-                            ImageDescription.tags.isnot(None),
-                            Photo.owner_id == owner_uuid,
-                            Photo.is_deleted == False,
-                        )
-                        .all()
-                    )
+                tag_map = {str(r.photo_id): r.tags for r in rows}
 
-                tag_results = []
-                for row in tag_rows:
-                    tags = row.tags
-                    if not isinstance(tags, dict):
-                        continue
-                    summary = tags.get("summary", [])
-                    if not isinstance(summary, list):
-                        continue
-                    matched = []
-                    excluded = []
-                    all_labels = set()
-                    for item in summary:
-                        if isinstance(item, dict) and item.get("label"):
-                            label = item["label"].lower()
-                            all_labels.add(label)
-                            # Check inclusion (objects list)
-                            for to in target_lower:
-                                if to == label or to in label or label in to:
-                                    matched.append(item["label"])
-                            # Check exclusion (exclude_objects list)
-                            if exclude_objects:
-                                for eo in {e.lower() for e in exclude_objects}:
-                                    if eo == label or eo in label or label in eo:
-                                        excluded.append(item["label"])
-                    # Apply AND/OR/NOT logic
-                    should_include = bool(matched)
-                    if should_include and exclude_objects and excluded:
-                        should_include = False  # NOT: excluded object present
-                    if should_include and match_all:
-                        matched_set = set(matched)
-                        matched_normalized = set()
-                        for m in matched_set:
-                            ml = m.lower()
-                            for to in target_lower:
-                                if to == ml or to in ml or ml in to:
-                                    matched_normalized.add(to)
-                        if matched_normalized != target_lower:
-                            should_include = False  # AND: not all objects present
-                    if should_include and only:
-                        extra = all_labels - target_lower
-                        if extra:
-                            should_include = False  # ONLY: photo has extra objects
-                    if should_include:
-                        tag_results.append({
-                            "photo_id": str(row.photo_id),
-                            "score": 0.5,
-                            "matched_objects": list(set(matched)),
-                            "source": "yolo_tag",
-                            "all_detections": list(all_labels),
-                        })
+                filtered = []
+                for r in results:
+                    pid = r["photo_id"]
+                    tags = tag_map.get(pid, [])
+                    if not isinstance(tags, list):
+                        tags = []
 
-                # Merge tag results with CLIP results (tag results take priority)
-                clip_ids = {r["photo_id"] for r in results}
-                for tr in tag_results:
-                    if tr["photo_id"] not in clip_ids:
-                        results.append(tr)
+                    # Flatten tags: tags is a list of lists (YOLO detections per run)
+                    flat_tags = set()
+                    for t in tags:
+                        if isinstance(t, dict):
+                            flat_tags.add(t.get("label", ""))
+                        elif isinstance(t, list):
+                            for item in t:
+                                if isinstance(item, dict):
+                                    flat_tags.add(item.get("label", ""))
+                                elif isinstance(item, str):
+                                    flat_tags.add(item)
+                        elif isinstance(t, str):
+                            flat_tags.add(t)
 
-                # Re-sort: matched objects count desc, then CLIP score desc
-                results.sort(key=lambda x: (
-                    -len(x.get("matched_objects", [])),
-                    -x.get("score", 0)
-                ))
+                    matched = [o for o in objects if o.lower() in flat_tags or any(o.lower() in ft for ft in flat_tags)]
+                    if matched:
+                        r["matched_objects"] = matched
+                        r["yolo_confidence"] = "tag"
+                        filtered.append(r)
 
-            # Phase 3: Person-name filtering (unchanged)
+                # Sort: more matched objects first, then by CLIP score
+                filtered.sort(key=lambda x: (-len(x.get("matched_objects", [])), -x.get("score", 0)))
+                results = filtered
 
             return json.dumps({
                 "found": len(results),
@@ -364,11 +334,11 @@ def _execute_tool(
             }, ensure_ascii=False)
 
         elif tool_name == "get_stats":
-            count = photo_crud.get_user_photo_count(db, uuid.UUID(owner_id))
+            count = int(photo_crud.get_user_photo_count(db, uuid.UUID(owner_id)))
             storage = photo_crud.get_storage_used(db, uuid.UUID(owner_id))
             return json.dumps({
-                "total_photos": count,
-                "storage_mb": round(storage / 1024 / 1024, 1) if storage else 0,
+                "total_photos": int(count),
+                "storage_mb": round(float(storage or 0) / 1024 / 1024, 1),
             }, ensure_ascii=False)
 
         elif tool_name == "analyze_image":
