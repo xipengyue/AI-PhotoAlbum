@@ -37,7 +37,7 @@
           </button>
           <button
             :class="['flex-1 py-2 text-sm rounded-md transition', !isLogin ? 'bg-white dark:bg-dark-card shadow text-blue-600 font-medium' : 'text-gray-500 dark:text-dark-text-secondary']"
-            @click="isLogin = false"
+            @click="switchToRegister"
           >
             注册
           </button>
@@ -46,10 +46,28 @@
         <!-- 登录表单 -->
         <el-form v-if="isLogin" :model="loginForm" :rules="loginRules" ref="loginFormRef" @submit.prevent="handleLogin">
           <el-form-item prop="username">
-            <el-input v-model="loginForm.username" placeholder="用户名或邮箱" :prefix-icon="User" size="large" @input="onUsernameInput" />
+            <el-input v-model="loginForm.username" placeholder="用户名或邮箱" :prefix-icon="User" size="large" @input="onUsernameInput">
+              <template #suffix>
+                <el-dropdown v-if="knownUsers.length > 0" trigger="click" @command="selectKnownUser">
+                  <el-icon class="cursor-pointer text-gray-400 hover:text-blue-500 transition-colors">
+                    <ArrowDown />
+                  </el-icon>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-for="user in knownUsers" :key="user.username" :command="user">
+                        <div class="flex items-center gap-2">
+                          <span class="font-medium">{{ user.nickname || user.username }}</span>
+                          <span class="text-xs text-gray-400">@{{ user.username }}</span>
+                        </div>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </template>
+            </el-input>
           </el-form-item>
           <el-form-item prop="password">
-            <el-input v-model="loginForm.password" type="password" placeholder="密码" :prefix-icon="Lock" show-password size="large" @keyup.enter="handleLogin" />
+            <el-input v-model="loginForm.password" type="password" placeholder="密码" :prefix-icon="Lock" :show-password="!passwordAutoFilled" size="large" @keyup.enter="handleLogin" @input="passwordAutoFilled = false" />
           </el-form-item>
 
           <!-- 验证码 -->
@@ -107,6 +125,27 @@
             <el-input v-model="registerForm.password" type="password" placeholder="密码（至少6位）" :prefix-icon="Lock" show-password size="large" />
           </el-form-item>
 
+          <!-- 验证码 -->
+          <el-form-item prop="captcha_code">
+            <div class="flex gap-3">
+              <el-input
+                v-model="registerForm.captcha_code"
+                placeholder="验证码"
+                :prefix-icon="Key"
+                size="large"
+                class="flex-1"
+                maxlength="4"
+              />
+              <img
+                :src="captchaImage"
+                alt="验证码"
+                class="h-10 w-[120px] rounded-lg border border-gray-200 dark:border-dark-border cursor-pointer select-none flex-shrink-0 bg-white"
+                title="点击刷新验证码"
+                @click="refreshCaptcha"
+              />
+            </div>
+          </el-form-item>
+
           <!-- 同意协议 -->
           <el-form-item>
             <el-checkbox v-model="agreedToTerms" size="small">
@@ -121,7 +160,7 @@
 
           <el-form-item>
             <el-button type="primary" size="large" class="w-full" :loading="loading" :disabled="!agreedToTerms" @click="handleRegister">
-              注 册
+              注 册并登录
             </el-button>
           </el-form-item>
         </el-form>
@@ -131,10 +170,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, User, Lock, Message, Key } from '@element-plus/icons-vue'
+import { ArrowLeft, User, Lock, Message, Key, ArrowDown } from '@element-plus/icons-vue'
 import { authApi } from '@/api/auth'
 import { useUserStore, getKnownUsers } from '@/stores/user'
 
@@ -143,38 +182,41 @@ const userStore = useUserStore()
 
 const isLogin = ref(true)
 const loading = ref(false)
-const agreedToTerms = ref(false)
 
 // ── 记住密码 ─────────────────────────
 const REMEMBER_KEY = 'remembered_credentials'
 const rememberPassword = ref(false)
+// 密码是否由"记住密码"自动填入（不可查看）
+const passwordAutoFilled = ref(false)
 
-interface SavedCred {
-  username: string
-  password: string
-}
-
-function loadSavedCredentials(): SavedCred | null {
+// 存储格式: { "username": "password", ... }
+function loadCredentialMap(): Record<string, string> {
   try {
     const raw = localStorage.getItem(REMEMBER_KEY)
-    if (!raw) return null
-    const cred = JSON.parse(raw) as SavedCred
-    if (cred.username && cred.password) return cred
-  } catch { /* ignore */ }
-  return null
+    if (!raw) return {}
+    const map = JSON.parse(raw)
+    return typeof map === 'object' && !Array.isArray(map) ? map : {}
+  } catch { return {} }
 }
 
 function saveCredentials(username: string, password: string) {
-  const cred: SavedCred = { username, password }
-  localStorage.setItem(REMEMBER_KEY, JSON.stringify(cred))
+  const map = loadCredentialMap()
+  map[username] = password
+  localStorage.setItem(REMEMBER_KEY, JSON.stringify(map))
 }
 
-function clearCredentials() {
-  localStorage.removeItem(REMEMBER_KEY)
+function removeCredential(username: string) {
+  const map = loadCredentialMap()
+  delete map[username]
+  if (Object.keys(map).length === 0) {
+    localStorage.removeItem(REMEMBER_KEY)
+  } else {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify(map))
+  }
 }
 
-// 自动填充已保存的凭据
-const savedCred = loadSavedCredentials()
+const credentialMap = loadCredentialMap()
+const hasSavedCred = Object.keys(credentialMap).length > 0
 
 // ── 验证码 ───────────────────────────
 const captchaId = ref('')
@@ -197,15 +239,36 @@ async function refreshCaptcha() {
 
 // ── 登录表单 ─────────────────────────
 const loginForm = reactive({
-  username: savedCred?.username || '',
-  password: savedCred?.password || '',
+  username: '',
+  password: '',
   captcha_code: '',
 })
 
-// 如果有保存的密码，默认勾选记住密码
-if (savedCred) {
+// 如果有保存的凭据，默认勾选记住密码
+if (hasSavedCred) {
   rememberPassword.value = true
 }
+
+// ── 同意协议 ─────────────────────────
+const TERMS_KEY = 'term_agreements'
+
+function loadTermAgreementMap(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(TERMS_KEY)
+    if (!raw) return {}
+    const map = JSON.parse(raw)
+    return typeof map === 'object' && !Array.isArray(map) ? map : {}
+  } catch { return {} }
+}
+
+function saveTermAgreement(username: string) {
+  const map = loadTermAgreementMap()
+  map[username] = true
+  localStorage.setItem(TERMS_KEY, JSON.stringify(map))
+}
+
+const termAgreementMap = loadTermAgreementMap()
+const agreedToTerms = ref(false)
 
 // 本地登录过的用户
 const knownUsers = getKnownUsers()
@@ -234,21 +297,39 @@ const displayInitial = computed(() => {
 })
 
 function onUsernameInput() {
-  // 切换用户时清除已保存密码的自动填充状态
-  if (savedCred && loginForm.username !== savedCred.username) {
-    loginForm.password = ''
-  }
-  // 头像加载错误状态跟随用户切换重置
   avatarLoadError.value = false
+  const input = loginForm.username.trim()
+
+  // 匹配已保存的密码：自动填入且不可查看
+  if (input && credentialMap[input]) {
+    loginForm.password = credentialMap[input]
+    passwordAutoFilled.value = true
+  } else {
+    if (passwordAutoFilled.value) {
+      loginForm.password = ''
+      passwordAutoFilled.value = false
+    }
+  }
+
+  // 匹配已同意协议的用户：自动勾选
+  agreedToTerms.value = input ? !!termAgreementMap[input] : false
+}
+
+function selectKnownUser(user: { username: string }) {
+  loginForm.username = user.username
+  onUsernameInput()
 }
 
 function switchToLogin() {
   isLogin.value = true
+  // 根据当前输入的用户名判断是否默认勾选协议
+  const input = loginForm.username.trim()
+  agreedToTerms.value = input ? !!termAgreementMap[input] : false
   refreshCaptcha()
 }
 
 // ── 注册表单 ─────────────────────────
-const registerForm = reactive({ username: '', email: '', password: '' })
+const registerForm = reactive({ username: '', email: '', password: '', captcha_code: '' })
 const registerRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   email: [
@@ -259,6 +340,13 @@ const registerRules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少6位', trigger: 'blur' },
   ],
+  captcha_code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
+}
+
+function switchToRegister() {
+  isLogin.value = false
+  agreedToTerms.value = false
+  refreshCaptcha()
 }
 
 // ── 登录 ─────────────────────────────
@@ -276,7 +364,12 @@ async function handleLogin() {
     if (rememberPassword.value) {
       saveCredentials(loginForm.username, loginForm.password)
     } else {
-      clearCredentials()
+      removeCredential(loginForm.username)
+    }
+
+    // 记住协议同意
+    if (agreedToTerms.value) {
+      saveTermAgreement(loginForm.username)
     }
 
     userStore.setAuth(res.data.access_token, res.data.user)
@@ -298,12 +391,21 @@ async function handleLogin() {
 async function handleRegister() {
   loading.value = true
   try {
-    const res = await authApi.register(registerForm)
+    const res = await authApi.register({
+      ...registerForm,
+      captcha_id: captchaId.value,
+      captcha_code: registerForm.captcha_code,
+    })
     userStore.setAuth(res.data.access_token, res.data.user)
     ElMessage.success('注册成功')
     router.push('/home')
-  } catch {
-    // 错误已在拦截器中处理
+  } catch (err: any) {
+    // 验证码错误时刷新
+    const msg = err?.response?.data?.detail || ''
+    if (msg.includes('验证码')) {
+      registerForm.captcha_code = ''
+      await refreshCaptcha()
+    }
   } finally {
     loading.value = false
   }
@@ -314,5 +416,10 @@ onMounted(() => {
   if (isLogin.value) {
     refreshCaptcha()
   }
+  // 根据当前输入同步协议状态
+  nextTick(() => {
+    const input = loginForm.username.trim()
+    agreedToTerms.value = input ? !!termAgreementMap[input] : false
+  })
 })
 </script>

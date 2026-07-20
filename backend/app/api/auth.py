@@ -24,6 +24,10 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(data: UserCreate, db: Session = Depends(get_db)):
     """用户注册"""
+    # 验证码校验
+    if not verify_captcha(data.captcha_id or "", data.captcha_code or ""):
+        raise HTTPException(status_code=400, detail="验证码错误或已过期")
+
     # 检查用户名是否已存在
     if get_user_by_username(db, data.username):
         raise HTTPException(status_code=400, detail="用户名已存在")

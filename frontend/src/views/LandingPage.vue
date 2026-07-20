@@ -161,7 +161,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
           <!-- 连接线（桌面端） -->
-          <div class="hidden md:block absolute top-12 left-[18%] right-[18%] h-0.5 bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 dark:from-blue-800 dark:via-indigo-800 dark:to-purple-800" />
+          <div class="steps-line hidden md:block absolute top-12 left-[18%] right-[18%] h-0.5 bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 dark:from-blue-800 dark:via-indigo-800 dark:to-purple-800" />
 
           <div
             v-for="(step, i) in steps"
@@ -319,7 +319,7 @@ function useRevealOnScroll() {
     )
 
     // 观察所有带 reveal 类名的元素
-    document.querySelectorAll('.reveal-up, .reveal-up-delayed, .reveal-up-more, .reveal-up-most, .feature-card, .step-card, .tech-item, .scene-card, .stat-item').forEach(el => observe(el))
+    document.querySelectorAll('.reveal-up, .reveal-up-delayed, .reveal-up-more, .reveal-up-most, .feature-card, .step-card, .tech-item, .scene-card, .stat-item, .steps-line').forEach(el => observe(el))
   })
 
   onUnmounted(() => {
@@ -599,6 +599,18 @@ const scenes = [
 .stat-item.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* 三步连接线 —— 从左向右延伸 */
+.steps-line {
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: opacity 0.6s ease-out, transform 0.8s ease-out;
+}
+.steps-line.visible {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 /* ═══════════ 暗色模式适配 ═══════════ */
