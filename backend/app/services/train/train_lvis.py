@@ -86,6 +86,9 @@ def parse_args():
 
 def main():
     """Entry point for YOLO LVIS fine-tuning"""
+    # Prevent Ultralytics/TQDM from reprinting progress lines when terminal is narrow
+    os.environ.setdefault("COLUMNS", "200")
+
     args = parse_args()
     project_root = get_project_root()
 
