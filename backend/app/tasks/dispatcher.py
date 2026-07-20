@@ -111,11 +111,41 @@ def _handle_geocode(db: Session, task: Task) -> dict:
 
 
 # 处理器注册表：仅注册当前已具备能力的任务类型
+def _handle_face_detect(db: Session, task: Task) -> dict:
+    """人脸检测 + 特征提取 + 增量聚类"""
+    from app.services.face_detect_service import detect_faces
+    from app.models.face import Face
+    from app.services.face_cluster_service import update_face_clusters
+    from app.crud.photo import update_processed_tasks
+
+    photo = _get_photo(db, task)
+    if not photo:
+        return {"error": "photo not found"}
+
+    faces = detect_faces(photo.file_path)
+    for f in faces:
+        face_obj = Face(
+            photo_id=photo.id,
+            face_feature=f["embedding"],
+            face_rect=f["bbox"],
+            confidence=f["confidence"],
+        )
+        db.add(face_obj)
+    db.flush()
+
+    # Incremental clustering
+    update_face_clusters(db, photo.id, owner_id=task.owner_id)
+
+    update_processed_tasks(db, photo, "face_detect", {"faces": len(faces)})
+    return {"faces": len(faces)}
+
+
 TASK_HANDLERS: Dict[TaskType, Callable[[Session, Task], dict]] = {
     TaskType.object_detection: _handle_object_detection,
     TaskType.image_embedding: _handle_image_embedding,
     TaskType.exif_extract: _handle_exif_extract,
     TaskType.geocode: _handle_geocode,
+    TaskType.face_detect: _handle_face_detect,
 }
 
 
