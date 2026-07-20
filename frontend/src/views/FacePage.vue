@@ -318,7 +318,7 @@ async function confirmMerge() {
       try {
         const res = await faceApi.cleanupEmpty()
         ElMessage.success('已清理 ' + res.data.deleted + ' 个空聚类')
-        loadIdentities()
+        fetchIdentities()
       } catch {
         // handled by interceptor
       }
