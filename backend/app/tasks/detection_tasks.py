@@ -1,4 +1,4 @@
-"""YOLO detection tasks --- run YOLO on newly uploaded photos and store tags.
+﻿"""YOLO detection tasks --- run YOLO on newly uploaded photos and store tags.
 
 Previously these tasks were created but never executed (Phase 2-3 gap).
 This module provides the actual execution logic.
@@ -54,7 +54,7 @@ def process_photo_detection(
             "detections": detections,
             "summary": summary,
             "total": result.get("total", 0),
-            "model": result.get("model", "yolo11n.pt"),
+            "model": result.get("model", "yolo26n.pt"),
         }
 
         # 3. Upsert ImageDescription.tags
@@ -171,3 +171,4 @@ __all__ = [
     "process_photo_detection",
     "run_pending_object_detection_tasks",
 ]
+
