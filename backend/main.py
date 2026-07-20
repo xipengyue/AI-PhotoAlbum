@@ -78,6 +78,7 @@ async def lifespan(_app: FastAPI):
     migrations = [
         "ALTER TABLE faces ADD COLUMN IF NOT EXISTS face_name VARCHAR(100)",
         "ALTER TABLE faces ADD COLUMN IF NOT EXISTS face_aliases JSON",
+        "ALTER TYPE tasktype ADD VALUE IF NOT EXISTS 'geocode'",
     ]
     for sql in migrations:
         try:
@@ -87,7 +88,17 @@ async def lifespan(_app: FastAPI):
         except Exception:
             pass
 
+    # 启动任务调度器（消费上传后创建的 AI 分析任务）
+    _app.state.scheduler = None
+    if settings.TASK_SCHEDULER_ENABLED:
+        from app.tasks.scheduler import start_scheduler
+        _app.state.scheduler = start_scheduler()
+
     yield
+
+    if getattr(_app.state, "scheduler", None):
+        from app.tasks.scheduler import shutdown_scheduler
+        shutdown_scheduler(_app.state.scheduler)
 
     logger.info("服务已关闭")
 
