@@ -45,26 +45,35 @@
       <!-- 检索命中的照片卡片（AI 消息） -->
       <div
         v-if="msg.role === 'assistant' && msg.results && msg.results.length > 0"
-        class="mt-3 grid grid-cols-3 gap-2"
+        class="mt-3"
       >
-        <div
-          v-for="(hit, index) in msg.results"
-          :key="hit.photo_id"
-          class="group relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
-          @click="openPreview(index)"
-        >
-          <img
-            :src="photoApi.thumbnailUrl(hit.photo_id)"
-            class="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-            loading="lazy"
-          />
-          <span
-            v-if="hit.score"
-            class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px]"
+        <div class="grid grid-cols-3 gap-2">
+          <div
+            v-for="(hit, index) in visibleResults"
+            :key="hit.photo_id"
+            class="group relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+            @click="openPreview(index)"
           >
-            {{ (hit.score * 100).toFixed(0) }}%
-          </span>
+            <img
+              :src="photoApi.thumbnailUrl(hit.photo_id)"
+              class="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+              loading="lazy"
+            />
+            <span
+              v-if="hit.score"
+              class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px]"
+            >
+              {{ (hit.score * 100).toFixed(0) }}%
+            </span>
+          </div>
         </div>
+        <p
+          v-if="msg.results.length > MAX_VISIBLE"
+          class="text-xs text-blue-500 cursor-pointer mt-1 hover:underline"
+          @click="showAll = !showAll"
+        >
+          {{ showAll ? '收起' : `展开全部 ${msg.results.length} 张 →` }}
+        </p>
       </div>
 
       <!-- 图片预览器 -->
@@ -139,8 +148,14 @@ const renderedContent = computed(() => {
 })
 
 // ── 照片结果预览 ──
+const MAX_VISIBLE = 5
+const showAll = ref(false)
 const previewVisible = ref(false)
 const previewIndex = ref(0)
+const visibleResults = computed(() => {
+  const results = props.msg.results || []
+  return showAll.value ? results : results.slice(0, MAX_VISIBLE)
+})
 const previewList = computed(() =>
   (props.msg.results || []).map((hit) => photoApi.fileUrl(hit.photo_id))
 )

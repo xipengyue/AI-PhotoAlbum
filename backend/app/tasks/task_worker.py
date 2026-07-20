@@ -1,0 +1,336 @@
+"""
+任务 Worker — 后台消费 pending 任务并执行 AI 分析
+
+启动方式: main.py 的 lifespan 中调用 start_worker()
+"""
+import logging
+import uuid
+import time
+import threading
+from typing import Optional
+
+from sqlalchemy.orm import Session
+
+from app.database.session import SessionLocal
+from app.models.task import Task, TaskType, TaskStatus
+from app.models.photo import Photo
+from app.crud.task import get_pending_tasks, update_task_status
+from app.crud.photo import update_processed_tasks
+
+logger = logging.getLogger("app.tasks.worker")
+
+_worker_thread: Optional[threading.Thread] = None
+_stop_flag = threading.Event()
+
+
+# ═══════════════════════════════════════════════════
+# 各任务类型的处理器
+# ═══════════════════════════════════════════════════
+
+
+def _handle_object_detection(db: Session, task: Task) -> dict:
+    """YOLO 目标检测 → 自动标签"""
+    from app.services.tag_service import generate_tags_for_photo
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+    desc = generate_tags_for_photo(db, photo)
+    labels = desc.tags if desc else []
+    return {"labels": labels, "count": len(labels)}
+
+
+def _handle_image_embedding(db: Session, task: Task) -> dict:
+    """CLIP 向量嵌入"""
+    from app.services.photo_vector_service import generate_photo_vector
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+    result = generate_photo_vector(db, str(photo.id), photo.file_path)
+    return {"success": result is not None}
+
+
+def _handle_image_description(db: Session, task: Task) -> dict:
+    """AI 画面描述（使用多模态 LLM 看图生成）"""
+    import base64
+    from app.services.agent.llm_agent import get_vision_llm
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+
+    # 读取照片文件并编码为 base64
+    import os
+    if not os.path.exists(photo.file_path):
+        return {"error": f"文件不存在: {photo.file_path}"}
+
+    with open(photo.file_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("utf-8")
+
+    ext = os.path.splitext(photo.file_path)[1].lower()
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp"}.get(ext.lstrip("."), "jpeg")
+
+    # 用已检测的标签作为额外上下文
+    tags_hint = ""
+    from app.models.description import ImageDescription
+    desc_row = db.query(ImageDescription).filter(ImageDescription.photo_id == task.photo_id).first()
+    if desc_row and desc_row.tags:
+        tags_hint = f" 已检测到物体: {', '.join(desc_row.tags)}。"
+
+    try:
+        llm = get_vision_llm()
+        response = llm.invoke([
+            SystemMessage(content="你是专业摄影师，用中文简短描述画面（20-50字），包括场景、主体、光线和氛围。"),
+            HumanMessage(content=[
+                {"type": "text", "text": f"请描述这张照片的画面内容。{tags_hint}"},
+                {"type": "image_url", "image_url": {"url": f"data:image/{mime};base64,{image_data}"}},
+            ]),
+        ])
+        description = response.content.strip() if hasattr(response, 'content') else str(response)
+
+        # 存储到 ImageDescription
+        if desc_row:
+            desc_row.description = description
+        else:
+            desc_row = ImageDescription(
+                id=uuid.uuid4(), photo_id=task.photo_id,
+                description=description,
+            )
+            db.add(desc_row)
+        db.commit()
+
+        return {"description": description}
+    except Exception as e:
+        return {"error": f"LLM 调用失败: {e}"}
+
+
+def _handle_quality_assessment(db: Session, task: Task) -> dict:
+    """照片质量评分（简易版：基于尺寸和标签数量）"""
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+
+    # 基础分：有尺寸信息+0.3
+    quality = 0.5
+    memory = 0.5
+
+    if photo.width and photo.height:
+        # 分辨率越高分越高（max 1MP → 0.8）
+        mp = (photo.width * photo.height) / 1_000_000
+        quality = min(0.8, 0.4 + mp * 0.05)
+
+    # 有标签 → 回忆价值更高
+    from app.models.description import ImageDescription
+    desc_row = db.query(ImageDescription).filter(ImageDescription.photo_id == task.photo_id).first()
+    if desc_row and desc_row.tags and len(desc_row.tags) > 0:
+        memory = min(0.9, 0.5 + len(desc_row.tags) * 0.1)
+
+    quality = round(quality, 2)
+    memory = round(memory, 2)
+
+    # 存储到 ImageDescription
+    if desc_row:
+        desc_row.quality_score = quality
+        desc_row.memory_score = memory
+    else:
+        desc_row = ImageDescription(
+            id=uuid.uuid4(), photo_id=task.photo_id,
+            quality_score=quality, memory_score=memory,
+        )
+        db.add(desc_row)
+    db.commit()
+
+    return {"quality_score": quality, "memory_score": memory}
+
+
+def _handle_exif_extract(db: Session, task: Task) -> dict:
+    """EXIF 元数据提取（上传时已提取，这里只做标记）"""
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+
+    from app.models.photo import PhotoMetadata
+    meta = db.query(PhotoMetadata).filter(PhotoMetadata.photo_id == task.photo_id).first()
+    return {"has_metadata": meta is not None}
+
+
+def _handle_face_detect(db: Session, task: Task) -> dict:
+    """人脸检测（依赖 insightface，模型未安装时跳过）"""
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+
+    try:
+        from app.services.face_detection import detect_faces
+        faces = detect_faces(photo.file_path)
+        if faces is None:
+            return {"faces": 0, "note": "insightface 模型未安装，跳过人脸检测"}
+
+        from app.models.face import Face, FaceIdentity
+        for f in faces:
+            face = Face(
+                photo_id=task.photo_id,
+                face_feature=f.get("embedding"),
+                face_rect=f.get("bbox"),
+                confidence=f.get("confidence", 0),
+            )
+            db.add(face)
+        db.commit()
+
+        # 触发增量聚类
+        from app.services.face_cluster_service import update_face_clusters
+        user_id = str(photo.owner_id)
+        update_face_clusters(db, str(task.photo_id))
+
+        return {"faces": len(faces)}
+    except ImportError:
+        return {"faces": 0, "note": "insightface 未安装"}
+    except Exception as e:
+        return {"error": f"人脸检测失败: {e}"}
+
+
+def _handle_face_cluster(db: Session, task: Task) -> dict:
+    """全量人脸聚类（处理所有未分配身份的人脸）"""
+    try:
+        from app.services.face_cluster_service import compute_all_cluster_centers
+        clusters = compute_all_cluster_centers(db)
+        return {"clusters_updated": len(clusters)}
+    except Exception as e:
+        return {"error": f"人脸聚类失败: {e}"}
+
+
+def _handle_thumbnail_generate(db: Session, task: Task) -> dict:
+    """生成缩略图"""
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+
+    try:
+        from PIL import Image
+        from app.services.thumbnail import generate_thumbnail_bytes
+        from app.config.settings import settings
+        from pathlib import Path
+
+        with open(photo.file_path, "rb") as f:
+            image_bytes = f.read()
+
+        thumb_bytes = generate_thumbnail_bytes(image_bytes)
+        thumb_dir = Path(settings.THUMBNAIL_DIR)
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        thumb_path = thumb_dir / f"{photo.filename}_thumb.jpg"
+
+        with open(thumb_path, "wb") as f:
+            f.write(thumb_bytes)
+
+        return {"thumbnail_path": str(thumb_path)}
+    except Exception as e:
+        return {"error": f"缩略图生成失败: {e}"}
+
+
+def _handle_dedup_check(db: Session, task: Task) -> dict:
+    """重复照片检测（基于 MD5）"""
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo or not photo.md5:
+        return {"duplicates": 0}
+
+    from app.crud.photo import get_photos_by_md5
+    duplicates = get_photos_by_md5(db, photo.md5)
+    dup_ids = [str(p.id) for p in duplicates if str(p.id) != str(task.photo_id)]
+
+    return {"duplicates": len(dup_ids), "duplicate_ids": dup_ids}
+
+
+# 任务类型 → 处理器映射
+HANDLERS = {
+    TaskType.object_detection: _handle_object_detection,
+    TaskType.image_embedding: _handle_image_embedding,
+    TaskType.image_description: _handle_image_description,
+    TaskType.quality_assessment: _handle_quality_assessment,
+    TaskType.exif_extract: _handle_exif_extract,
+    TaskType.face_detect: _handle_face_detect,
+    TaskType.face_cluster: _handle_face_cluster,
+    TaskType.thumbnail_generate: _handle_thumbnail_generate,
+    TaskType.dedup_check: _handle_dedup_check,
+}
+
+
+# ═══════════════════════════════════════════════════
+# 主调度循环
+# ═══════════════════════════════════════════════════
+
+
+def _process_one_task(db: Session, task: Task) -> bool:
+    """处理单个任务，返回是否成功"""
+    handler = HANDLERS.get(getattr(task, 'task_type', None))
+    if not handler:
+        update_task_status(db, task, TaskStatus.completed,
+                          result={"note": "该任务类型暂未实现处理器"})
+        return True
+
+    try:
+        update_task_status(db, task, TaskStatus.running)
+        result = handler(db, task)
+        update_task_status(db, task, TaskStatus.completed, result=result)
+
+        # 标记照片已完成该分析
+        if task.photo_id:
+            photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+            if photo:
+                task_type_name = task.task_type.value if hasattr(task.task_type, 'value') else str(task.task_type)
+                update_processed_tasks(db, photo, task_type_name, result)
+
+        logger.info(f"任务完成: {task.id} ({task.task_type.value if hasattr(task.task_type, 'value') else task.task_type})")
+        return True
+
+    except Exception as e:
+        logger.error(f"任务失败: {task.id} - {e}")
+        update_task_status(db, task, TaskStatus.failed, error_message=str(e))
+        return False
+
+
+def _worker_loop(poll_interval: int = 5, batch_size: int = 5):
+    """后台循环：每隔 poll_interval 秒拉取 pending 任务并处理"""
+    logger.info("任务 Worker 已启动")
+    while not _stop_flag.is_set():
+        try:
+            db = SessionLocal()
+            try:
+                tasks = get_pending_tasks(db, limit=batch_size)
+                if tasks:
+                    logger.info(f"发现 {len(tasks)} 个待处理任务")
+                    for task in tasks:
+                        if _stop_flag.is_set():
+                            break
+                        _process_one_task(db, task)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Worker 异常: {e}")
+
+        # 等待下一次轮询
+        _stop_flag.wait(timeout=poll_interval)
+
+    logger.info("任务 Worker 已停止")
+
+
+def start_worker(poll_interval: int = 5, batch_size: int = 5):
+    """启动后台任务 Worker（在 FastAPI lifespan 中调用）"""
+    global _worker_thread, _stop_flag
+    if _worker_thread and _worker_thread.is_alive():
+        return
+
+    _stop_flag.clear()
+    _worker_thread = threading.Thread(
+        target=_worker_loop,
+        args=(poll_interval, batch_size),
+        daemon=True,
+    )
+    _worker_thread.start()
+
+
+def stop_worker():
+    """停止后台任务 Worker"""
+    global _worker_thread
+    _stop_flag.set()
+    if _worker_thread:
+        _worker_thread.join(timeout=5)

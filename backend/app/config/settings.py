@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4o"
 
+    # -- 视觉模型 API（用于图像描述，需多模态模型）--------
+    VISION_API_KEY: str = ""
+    VISION_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
+    VISION_MODEL: str = "glm-4.6v-flashx"
+
     # -- MinIO 对象存储 ----------------------------------
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
