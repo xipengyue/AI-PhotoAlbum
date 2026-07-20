@@ -50,11 +50,8 @@ Step 4/4: 保存最佳模型到 /data/models/lvis_finetuned/
 
 **使用方法**：
 
-使用前先下载数据集！！！
-https://www.lvisdataset.org/dataset
-
 ```bash
-cd F:\AI-PhotoAlbum-ai-VLM\backend
+cd /backend
 
 # 基础训练
 uv run python -m app.services.train.train_lvis --device 0
@@ -68,7 +65,7 @@ uv run python -m app.services.train.train_lvis \
 
 # 从 checkpoint 恢复
 uv run python -m app.services.train.train_lvis \
-  --resume "F:\AI-PhotoAlbum-ai-VLM\backend\runs\detect\lvis_yolo26s\weights\last.pt" \
+  --resume "runs/detect/lvis_yolo26s/weights/last.pt" \
   --device 0
 ```
 
