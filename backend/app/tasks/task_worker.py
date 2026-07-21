@@ -297,8 +297,7 @@ def _handle_face_detect(db: Session, task: Task) -> dict:
 
         # 触发增量聚类
         from app.services.face_cluster_service import update_face_clusters
-        user_id = str(photo.owner_id)
-        update_face_clusters(db, str(task.photo_id))
+        update_face_clusters(db, str(task.photo_id), owner_id=str(photo.owner_id))
 
         return {"faces": len(faces)}
     except ImportError:

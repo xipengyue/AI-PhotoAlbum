@@ -4,6 +4,7 @@
 """
 import logging
 from typing import Optional, List
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,11 @@ def _load_model():
     if _model is not None:
         return _model
     try:
+        # 模型文件实际路径：backend/../data/insightface_home/
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        _home = os.path.join(_root, 'data', 'insightface_home')
+        if os.path.isdir(_home):
+            os.environ['INSIGHTFACE_HOME'] = _home.replace('\\', '/')
         import insightface
         _model = insightface.app.FaceAnalysis(
             name="buffalo_l",
