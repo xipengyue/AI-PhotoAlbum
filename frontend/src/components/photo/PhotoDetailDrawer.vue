@@ -61,14 +61,7 @@
       </el-descriptions>
 
       <!-- AI 分析 -->
-      <el-descriptions
-        v-if="hasAiInfo"
-        title="AI 分析"
-        :column="1"
-        border
-        size="small"
-        class="mt-4"
-      >
+      <el-descriptions title="AI 分析" :column="1" border size="small" class="mt-4">
         <el-descriptions-item v-if="aiTags.length > 0" label="标签">
           <div class="flex flex-wrap gap-1">
             <el-tag
@@ -95,6 +88,9 @@
           <span v-if="memoryScore != null">
             回忆价值: <b class="text-purple-600">{{ memoryScore }}</b>
           </span>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="!aiTags.length && !aiDesc && qualityScore == null && memoryScore == null" label="AI 分析">
+          <span class="text-gray-400 text-sm">暂未分析（上传后系统会自动分析）</span>
         </el-descriptions-item>
       </el-descriptions>
 
