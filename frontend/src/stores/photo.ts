@@ -44,9 +44,9 @@ export const usePhotoStore = defineStore('photo', () => {
     }
   }
 
-  async function uploadPhoto(file: File): Promise<PhotoDetail | null> {
+  async function uploadPhoto(file: File, onProgress?: (pct: number) => void): Promise<PhotoDetail | null> {
     try {
-      const res = await photoApi.upload(file)
+      const res = await photoApi.upload(file, onProgress)
       clearPhotosCache()
       await fetchPhotos(currentPage.value)
       return res.data

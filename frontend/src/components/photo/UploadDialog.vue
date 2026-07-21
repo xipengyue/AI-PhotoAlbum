@@ -166,7 +166,7 @@ async function startUpload() {
     uploadingFile.value = file
     progress.value = 0
     try {
-      const result = await store.uploadPhoto(file)
+      const result = await store.uploadPhoto(file, (pct) => { progress.value = pct })
       if (result) {
         successCount++
       } else {
