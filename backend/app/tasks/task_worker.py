@@ -45,6 +45,9 @@ def _handle_image_embedding(db: Session, task: Task) -> dict:
     photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
     if not photo:
         return {"error": "照片不存在"}
+    # 设置进度提示
+    task.progress = {"message": "正在加载 CLIP 模型并生成特征向量"}
+    db.commit()
     result = generate_photo_vector(db, str(photo.id), photo.file_path)
     return {"success": result is not None}
 
@@ -107,7 +110,7 @@ def _handle_image_description(db: Session, task: Task) -> dict:
 
         return {"description": description}
     except Exception as e:
-        logger.warning(f'LLM 描述失败（{e}），降级到 YOLO 标签描述')
+        logger.exception(f'LLM 描述失败: {e}，降级到 YOLO 标签描述')
 
     # 降级路径：从 YOLO 标签生成描述
     try:
@@ -206,7 +209,7 @@ def _handle_quality_assessment(db: Session, task: Task) -> dict:
         else:
             quality, memory, reason = 0.5, 0.5, "解析失败"
     except Exception as e:
-        logger.warning(f'LLM 评分失败（{e}），降级到启发式评分')
+        logger.exception(f'LLM 评分失败: {e}，降级到启发式评分')
         # 降级路径：PIL 启发式评分
         quality = 0.5
         memory = 0.5
@@ -355,6 +358,34 @@ def _handle_dedup_check(db: Session, task: Task) -> dict:
     return {"duplicates": len(dup_ids), "duplicate_ids": dup_ids}
 
 
+def _handle_geocode(db: Session, task: Task) -> dict:
+    """反向地理编码：GPS 经纬度 → 省/市/区，回填 PhotoMetadata"""
+    from app.crud.photo import create_photo_metadata, update_processed_tasks
+    from app.services.geocode_service import reverse_geocode
+
+    photo = db.query(Photo).filter(Photo.id == task.photo_id).first()
+    if not photo:
+        return {"error": "照片不存在"}
+
+    meta = photo.metadata_info
+    if meta is None or meta.latitude is None or meta.longitude is None:
+        update_processed_tasks(db, photo, "geocode", {"applied": False, "reason": "no_gps"})
+        return {"applied": False, "reason": "no_gps"}
+
+    # 已解析出城市则跳过，避免重复请求
+    if meta.city:
+        return {"applied": False, "reason": "already"}
+
+    geo = reverse_geocode(meta.latitude, meta.longitude)
+    if not geo:
+        update_processed_tasks(db, photo, "geocode", {"applied": False, "reason": "no_result"})
+        return {"applied": False, "reason": "no_result"}
+
+    create_photo_metadata(db, photo_id=photo.id, **geo)
+    update_processed_tasks(db, photo, "geocode", {"applied": True, "city": geo.get("city")})
+    return {"applied": True, "city": geo.get("city")}
+
+
 # 任务类型 → 处理器映射
 HANDLERS = {
     TaskType.object_detection: _handle_object_detection,
@@ -366,6 +397,7 @@ HANDLERS = {
     TaskType.face_cluster: _handle_face_cluster,
     TaskType.thumbnail_generate: _handle_thumbnail_generate,
     TaskType.dedup_check: _handle_dedup_check,
+    TaskType.geocode: _handle_geocode,
 }
 
 
