@@ -225,22 +225,22 @@ AI-PhotoAlbum/
 │       │   ├── deps.py             # 依赖注入（认证/DB会话）
 │       │   ├── auth.py             # ✅ POST /auth/register, /auth/login, GET /auth/me
 │       │   ├── system.py           # ✅ GET /api/health
-      │       │   ├── photo.py            # ✅ 照片 CRUD + 上传 + 文件 + 回收站
-      │       │   ├── tasks.py            # ✅ 异步任务查询 + 统计
-      │       │   ├── album.py            # ✅ 相册管理 CRUD
-      │       │   ├── face.py             # ✅ 人脸管理（身份列表/照片/更新/合并/命名）
-      │       │   ├── search.py           # ✅ 智能搜索（语义/关键词/标签）
-      │       │   └── agent.py            # ✅ Agent 对话（会话/消息/以图搜图）
+│       │   ├── photo.py            # ✅ 照片 CRUD + 上传 + 文件 + 回收站
+│       │   ├── tasks.py            # ✅ 异步任务查询 + 统计
+│       │   ├── album.py            # ✅ 相册管理 CRUD
+│       │   ├── face.py             # ✅ 人脸管理（身份列表/照片/更新/合并/命名）
+│       │   ├── search.py           # ✅ 智能搜索（语义/关键词/标签）
+│       │   └── agent.py            # ✅ Agent 对话（会话/消息/以图搜图）
 │       │
-      │       ├── services/               # 业务服务层
-      │       │   ├── photo_service.py    # ✅ 照片上传编排
-      │       │   ├── exif_service.py     # ✅ EXIF 元数据提取
-      │       │   ├── thumbnail.py        # ✅ 缩略图生成
-      │       │   ├── detection_service.py # ✅ YOLO 目标检测
-      │       │   ├── face_cluster_service.py  # ✅ 人脸增量聚类
-      │       │   ├── name_confirmation_service.py  # ✅ 命名确认
-      │       │   ├── search_service.py   # ✅ CLIP 检索 + jieba 分词
-      │       │   └── agent/              # ✅ LangGraph 检索代理 + 对话
+│       ├── services/               # 业务服务层
+│       │   ├── photo_service.py    # ✅ 照片上传编排
+│       │   ├── exif_service.py     # ✅ EXIF 元数据提取
+│       │   ├── thumbnail.py        # ✅ 缩略图生成
+│       │   ├── detection_service.py # ✅ YOLO 目标检测
+│       │   ├── face_cluster_service.py  # ✅ 人脸增量聚类
+│       │   ├── name_confirmation_service.py  # ✅ 命名确认
+│       │   ├── search_service.py   # ✅ CLIP 检索 + jieba 分词
+│       │   └── agent/              # ✅ LangGraph 检索代理 + 对话
 │       │
 │       ├── tasks/                  # 🚧 异步任务
 │       └── middleware/
