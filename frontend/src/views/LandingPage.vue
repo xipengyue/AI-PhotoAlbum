@@ -124,12 +124,32 @@
           </p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- 第一行：2 个 -->
+        <div class="flex flex-wrap justify-center gap-6 mb-6">
           <div
-            v-for="(feature, i) in features"
+            v-for="(feature, i) in features.slice(0, 2)"
             :key="feature.title"
             :style="{ transitionDelay: `${0.05 + i * 0.07}s` }"
-            class="feature-card group relative p-8 rounded-2xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 overflow-hidden"
+            class="feature-card group relative p-8 rounded-2xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 overflow-hidden w-full md:w-[calc(50%-12px)]"
+          >
+            <!-- 卡片背景光效 -->
+            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-blue-50/50 via-transparent to-transparent dark:from-blue-900/10" />
+            <div class="relative z-10">
+              <div class="w-12 h-12 rounded-xl mb-5 flex items-center justify-center text-white bg-gradient-to-br group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300" :class="feature.gradient">
+                <el-icon :size="24"><component :is="feature.icon" /></el-icon>
+              </div>
+              <h3 class="text-lg font-semibold text-gray-800 dark:text-dark-text mb-2">{{ feature.title }}</h3>
+              <p class="text-gray-500 dark:text-dark-text-secondary text-sm leading-relaxed">{{ feature.desc }}</p>
+            </div>
+          </div>
+        </div>
+        <!-- 第二行：3 个 -->
+        <div class="flex flex-wrap justify-center gap-6">
+          <div
+            v-for="(feature, i) in features.slice(2)"
+            :key="feature.title"
+            :style="{ transitionDelay: `${0.05 + (i + 2) * 0.07}s` }"
+            class="feature-card group relative p-8 rounded-2xl bg-gray-50 dark:bg-dark-card border border-gray-100 dark:border-dark-border hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 overflow-hidden w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]"
           >
             <!-- 卡片背景光效 -->
             <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-blue-50/50 via-transparent to-transparent dark:from-blue-900/10" />
@@ -280,7 +300,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import {
-  PictureFilled, StarFilled, Camera, Search, ChatDotRound,
+  PictureFilled, StarFilled, Camera, ChatDotRound,
   VideoPlay, DataBoard, TrendCharts, UserFilled, Folder, Location,
   ArrowDown, Upload, Setting, Promotion,
 } from '@element-plus/icons-vue'
@@ -401,12 +421,6 @@ onUnmounted(() => {
 
 // ── 功能列表 ─────────────────────────
 const features = [
-  {
-    icon: Search,
-    title: '智能搜索',
-    desc: '支持自然语言搜索照片，输入「去年夏天在海边拍的照片」即可精准定位，也支持以图搜图。',
-    gradient: 'from-blue-500 to-blue-600',
-  },
   {
     icon: UserFilled,
     title: '人脸识别',
