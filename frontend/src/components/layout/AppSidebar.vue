@@ -61,12 +61,14 @@
         </el-tooltip>
         <template #title><span class="menu-title">足迹</span></template>
       </el-menu-item>
+      <!--
       <el-menu-item index="/search" class="sidebar-item">
         <el-tooltip content="搜索" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
           <el-icon><Search /></el-icon>
         </el-tooltip>
         <template #title><span class="menu-title">搜索</span></template>
       </el-menu-item>
+      -->
       <el-menu-item index="/agent" class="sidebar-item">
         <el-tooltip content="AI 助手" placement="right" :disabled="expanded" :show-after="1000" :hide-after="0">
           <el-icon><ChatDotRound /></el-icon>
